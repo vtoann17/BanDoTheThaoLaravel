@@ -10,7 +10,7 @@ class CategoriesController extends Controller
 {
     public function index()
     {
-        return Category::all();
+        return response()->json(Category::all());
     }
 
     public function store(Request $request)
@@ -20,12 +20,19 @@ class CategoriesController extends Controller
             'slug' => 'required|unique:categories'
         ]);
 
-        return Category::create($data);
+        $category = Category::create($data);
+
+        return response()->json([
+            'message' => 'Thêm thành công',
+            'data' => $category
+        ]);
     }
 
     public function show($id)
     {
-        return Category::findOrFail($id);
+        $category = Category::findOrFail($id);
+
+        return response()->json($category);
     }
 
     public function update(Request $request, $id)
@@ -49,6 +56,8 @@ class CategoriesController extends Controller
     {
         Category::destroy($id);
 
-        return response()->json(['message' => 'Deleted']);
+        return response()->json([
+            'message' => 'Xoá thành công'
+        ]);
     }
 }
