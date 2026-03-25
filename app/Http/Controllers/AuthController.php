@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -20,7 +22,8 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => $request->password
+            'password' => $request->password,
+            'role' => 'user',
         ]);
 
         $token = $user->createToken('api-token')->plainTextToken;
@@ -31,6 +34,36 @@ class AuthController extends Controller
             'token' => $token
         ]);
     }
+    public function googleCallback()
+    {
+        $googleUser = Socialite::driver('google')->stateless()->user();
+
+        $user = User::where('email', $googleUser->email)->first();
+
+        if (!$user) {
+            $user = User::create([
+                'name' => $googleUser->name,
+                'email' => $googleUser->email,
+                'google_id' => $googleUser->id,
+                'avatar' => $googleUser->avatar,
+                'provider' => 'google',
+                'password' => bcrypt(Str::random(16)),
+                'role' => 'user',
+            ]);
+        } else {
+            $user->update([
+                'google_id' => $googleUser->id,
+                'avatar' => $googleUser->avatar,
+                'provider' => 'google',
+            ]);
+        }
+
+        $user->tokens()->delete();
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return redirect("http://localhost:5173/auth/callback?token=$token");
+    }
 
     public function login(Request $request)
     {
@@ -39,13 +72,22 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Tài khoản không tồn tại'
+            ], 404);
+        }
+
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
-                'message' => 'Sai tài khoản hoặc mật khẩu'
+                'message' => 'Sai mật khẩu'
             ], 401);
         }
 
-        $user = Auth::user();
+        $user->tokens()->delete();
+
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
@@ -53,6 +95,10 @@ class AuthController extends Controller
             'user' => $user,
             'token' => $token
         ]);
+    }
+    public function googleRedirect()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
     }
 
     public function logout(Request $request)
