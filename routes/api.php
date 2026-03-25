@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ForgotPasswordController;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,6 +20,11 @@ use App\Http\Controllers\AuthController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
+Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendOtp']);
+Route::post('/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
+Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
