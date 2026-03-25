@@ -4,8 +4,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\ProductsController;
+<<<<<<< HEAD
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\ReviewsController;
+=======
+use App\Http\Controllers\AuthController;
+
+>>>>>>> a8663cb64a875511aa296e12d6d048bc604dfa45
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -17,10 +22,19 @@ use App\Http\Controllers\ReviewsController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/getUser', [AuthController::class, 'user']);
 });
+
 Route::apiResource('categories', CategoriesController::class);
+<<<<<<< HEAD
 Route::apiResource('products', ProductsController::class);
 Route::apiResource('brands', BrandsController::class);
 Route::apiResource('reviews', ReviewsController::class);
+=======
+Route::apiResource('products', ProductsController::class);
+>>>>>>> a8663cb64a875511aa296e12d6d048bc604dfa45
