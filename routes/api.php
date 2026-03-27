@@ -1,17 +1,18 @@
 <?php
 
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\VariantController;
+use App\Http\Controllers\VariantValueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\ProductsController;
-<<<<<<< HEAD
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\ReviewsController;
-=======
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
 
->>>>>>> a8663cb64a875511aa296e12d6d048bc604dfa45
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -25,22 +26,31 @@ use App\Http\Controllers\ForgotPasswordController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
 Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
+
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendOtp']);
 Route::post('/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
 Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
 
+// xem dữ liệu (public)
+Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
+Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
+Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/getUser', [AuthController::class, 'user']);
+    Route::apiResource('reviews', ReviewsController::class);
+});
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
+    Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
+    Route::apiResource('brands', BrandsController::class)->except(['index', 'show']);
+    Route::apiResource('attribute', AttributeController::class);
+    Route::apiResource('attribute-value', AttributeValueController::class);
+    Route::apiResource('variant', VariantController::class);
+    Route::apiResource('variant-value', VariantValueController::class);
 });
 
-Route::apiResource('categories', CategoriesController::class);
-<<<<<<< HEAD
-Route::apiResource('products', ProductsController::class);
-Route::apiResource('brands', BrandsController::class);
-Route::apiResource('reviews', ReviewsController::class);
-=======
-Route::apiResource('products', ProductsController::class);
->>>>>>> a8663cb64a875511aa296e12d6d048bc604dfa45

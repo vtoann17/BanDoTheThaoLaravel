@@ -30,7 +30,6 @@ class ProductsController extends Controller
             'slug' => 'required|unique:products',
             'description' => 'nullable',
             'price' => 'required|numeric',
-            'stock' => 'required|integer',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'status' => 'required|in:0,1'
         ]);
@@ -63,7 +62,6 @@ class ProductsController extends Controller
             'slug' => 'required|unique:products,slug,' . $id,
             'description' => 'nullable',
             'price' => 'required|numeric',
-            'stock' => 'required|integer',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'status' => 'required|in:0,1'
         ]);
