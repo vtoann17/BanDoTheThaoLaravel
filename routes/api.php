@@ -8,6 +8,7 @@ use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\CouponsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,4 +38,5 @@ Route::apiResource('categories', CategoriesController::class);
 Route::apiResource('products', ProductsController::class);
 Route::apiResource('brands', BrandsController::class);
 Route::apiResource('reviews', ReviewsController::class);
-Route::apiResource('products', ProductsController::class);
+Route::apiResource('coupons', CouponsController::class);
+
