@@ -22,9 +22,13 @@ class BrandsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required',
-            'slug' => 'required|unique:brands'
+            'slug' => 'required|unique:brands',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
         ]);
 
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('uploads', 'public');
+        }
         $brands = Brands::create($data);
 
         return response()->json([
@@ -50,8 +54,13 @@ class BrandsController extends Controller
         $brands = Brands::findOrFail($id);
         $data = $request->validate([
             'name' => 'required',
-            'slug' => 'required|unique:brands,slug,' . $id
+            'slug' => 'required|unique:brands,slug,' . $id,
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('uploads', 'public');
+        }
         $brands->update($data);
         return response()->json([
             'message' => 'Cập nhật thành công',
