@@ -17,9 +17,13 @@ class CategoriesController extends Controller
     {
         $data = $request->validate([
             'name' => 'required',
-            'slug' => 'required|unique:categories'
+            'slug' => 'required|unique:categories',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
         ]);
 
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('uploads', 'public');
+        }
         $category = Category::create($data);
 
         return response()->json([
@@ -41,9 +45,13 @@ class CategoriesController extends Controller
 
         $data = $request->validate([
             'name' => 'required',
-            'slug' => 'required|unique:categories,slug,' . $id
+            'slug' => 'required|unique:categories,slug,' . $id,
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
         ]);
 
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('uploads', 'public');
+        }
         $category->update($data);
 
         return response()->json([

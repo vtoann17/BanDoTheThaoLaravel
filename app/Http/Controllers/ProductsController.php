@@ -12,7 +12,7 @@ class ProductsController extends Controller
      */
     public function index()
     {
-        return Product::all();
+        return response()->json(Product::all());
     }
 
     /**
@@ -27,6 +27,7 @@ class ProductsController extends Controller
         $data = $request->validate([
             'name' => 'required|max:255',
             'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'required|exists:brands,id',
             'slug' => 'required|unique:products',
             'description' => 'nullable',
             'price' => 'required|numeric',
@@ -59,6 +60,7 @@ class ProductsController extends Controller
         $data = $request->validate([
             'name' => 'required|max:255',
             'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'required|exists:brands,id',
             'slug' => 'required|unique:products,slug,' . $id,
             'description' => 'nullable',
             'price' => 'required|numeric',
