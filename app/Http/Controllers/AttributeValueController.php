@@ -11,11 +11,37 @@ class AttributeValueController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(
-            AttributeValue::with('attribute')->get()
-        );
+        $query = AttributeValue::with('attribute');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('value', 'like', "%{$search}%")
+                  ->orWhereHas('attribute', function ($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->filled('attribute_id')) {
+            $query->where('attribute_id', $request->attribute_id);
+        }
+
+        $sortBy  = in_array($request->sort_by, ['id', 'value', 'attribute_id', 'created_at']) ? $request->sort_by : 'id';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;
+
+        $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+        return response()->json([
+            'data'         => $result->items(),
+            'total'        => $result->total(),
+            'per_page'     => $result->perPage(),
+            'current_page' => $result->currentPage(),
+            'last_page'    => $result->lastPage(),
+        ]);
     }
 
     /**

@@ -10,9 +10,57 @@ class ProductsController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Product::all());
+        $query = Product::query()->with(['subcategory', 'brand']);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('subcategory_id')) {
+            $query->where('subcategory_id', $request->subcategory_id);
+        }
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        $sortBy = in_array($request->sort_by, [
+            'id',
+            'name',
+            'price',
+            'created_at'
+        ]) ? $request->sort_by : 'id';
+
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = in_array((int) $request->per_page, [4, 10, 20, 50])
+            ? (int) $request->per_page
+            : 10;
+
+        $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+        return response()->json([
+            'data' => $result->items(),
+            'total' => $result->total(),
+            'per_page' => $result->perPage(),
+            'current_page' => $result->currentPage(),
+            'last_page' => $result->lastPage(),
+        ]);
     }
 
     /**
@@ -26,7 +74,7 @@ class ProductsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|max:255',
-            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'required|exists:subcategories,id',
             'brand_id' => 'required|exists:brands,id',
             'slug' => 'required|unique:products',
             'description' => 'nullable',
@@ -47,7 +95,7 @@ class ProductsController extends Controller
      */
     public function show($id)
     {
-        return Product::findOrFail($id);
+        return Product::with(['subcategory.category', 'brand'])->findOrFail($id);
     }
 
     /**
@@ -59,7 +107,7 @@ class ProductsController extends Controller
 
         $data = $request->validate([
             'name' => 'required|max:255',
-            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'required|exists:subcategories,id',
             'brand_id' => 'required|exists:brands,id',
             'slug' => 'required|unique:products,slug,' . $id,
             'description' => 'nullable',
@@ -71,6 +119,7 @@ class ProductsController extends Controller
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('uploads', 'public');
         }
+
         $product->update($data);
 
         return response()->json([

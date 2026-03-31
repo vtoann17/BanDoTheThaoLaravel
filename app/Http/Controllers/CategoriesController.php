@@ -8,10 +8,32 @@ use App\Http\Controllers\Controller;
 
 class CategoriesController extends Controller
 {
-    public function index()
-    {
-        return response()->json(Category::all());
+    public function index(Request $request)
+{
+    $query = Category::query();
+
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) { 
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('slug', 'like', "%{$search}%");
+        });
     }
+
+    $sortBy  = in_array($request->sort_by, ['id', 'name', 'slug', 'created_at']) ? $request->sort_by : 'id';
+    $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+    $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;
+
+    $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+    return response()->json([
+        'data'         => $result->items(),
+        'total'        => $result->total(),
+        'per_page'     => $result->perPage(),
+        'current_page' => $result->currentPage(),
+        'last_page'    => $result->lastPage(),
+    ]);
+}
 
     public function store(Request $request)
     {
