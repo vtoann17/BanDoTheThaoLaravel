@@ -7,6 +7,7 @@ use App\Http\Controllers\VariantValueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoriesController;
+use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\ReviewsController;
@@ -27,10 +28,8 @@ use App\Http\Controllers\CouponsController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
 Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
-
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendOtp']);
 Route::post('/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
 Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
@@ -39,6 +38,8 @@ Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'
 Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
 Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
 Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
+Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
+Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -48,16 +49,22 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
+    Route::apiResource('subcategories', SubcategoryController::class)->except(['index', 'show']);
     Route::apiResource('brands', BrandsController::class)->except(['index', 'show']);
-    Route::apiResource('attribute', AttributeController::class);
-    Route::apiResource('attribute-value', AttributeValueController::class);
-    Route::apiResource('variant', VariantController::class);
+    Route::apiResource('attributes', AttributeController::class)->except(['index', 'show']);
+    Route::apiResource('attribute-value', AttributeValueController::class)->except(['index', 'show']);
+    Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
     Route::apiResource('variant-value', VariantValueController::class);
 });
 
 Route::apiResource('categories', CategoriesController::class);
+Route::apiResource('subcategories', SubcategoryController::class);
 Route::apiResource('products', ProductsController::class);
+Route::apiResource('attribute-value', AttributeValueController::class);
 Route::apiResource('brands', BrandsController::class);
 Route::apiResource('reviews', ReviewsController::class);
 Route::apiResource('coupons', CouponsController::class);
+Route::apiResource('subcategories', SubcategoryController::class);
+
+Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
 
