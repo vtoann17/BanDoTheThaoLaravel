@@ -14,6 +14,7 @@ use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\CouponsController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
 
@@ -42,8 +43,10 @@ Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
 Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
 Route::apiResource('subcategories', SubcategoryController::class)->only(['index', 'show']);
 Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
+Route::apiResource('coupons', CouponsController::class)->only(['index', 'show']);
 Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
 Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
+Route::apiResource('users', UserController::class)->only(['index', 'show']);
 Route::apiResource('attribute-value', AttributeValueController::class)->only(['index', 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -54,10 +57,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cart', CartController::class);
 });
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
     Route::apiResource('subcategories', SubcategoryController::class)->except(['index', 'show']);
     Route::apiResource('brands', BrandsController::class)->except(['index', 'show']);
+    Route::apiResource('coupons', CouponsController::class)->except(['index', 'show']);
     Route::apiResource('attributes', AttributeController::class)->except(['index', 'show']);
     Route::apiResource('attribute-value', AttributeValueController::class)->except(['index', 'show']);
     Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
@@ -65,4 +70,3 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 });
 
 Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
-
