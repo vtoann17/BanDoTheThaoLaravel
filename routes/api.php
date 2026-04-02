@@ -14,6 +14,7 @@ use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\CouponsController;
+use App\Http\Controllers\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,8 +39,10 @@ Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'
 Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
 Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
 Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
+Route::apiResource('coupons', CouponsController::class)->only(['index', 'show']);
 Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
 Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
+Route::apiResource('users', UserController::class)->only(['index', 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -47,10 +50,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('reviews', ReviewsController::class);
 });
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
     Route::apiResource('subcategories', SubcategoryController::class)->except(['index', 'show']);
     Route::apiResource('brands', BrandsController::class)->except(['index', 'show']);
+    Route::apiResource('coupons', CouponsController::class)->except(['index', 'show']);
     Route::apiResource('attributes', AttributeController::class)->except(['index', 'show']);
     Route::apiResource('attribute-value', AttributeValueController::class)->except(['index', 'show']);
     Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
@@ -67,4 +72,3 @@ Route::apiResource('coupons', CouponsController::class);
 Route::apiResource('subcategories', SubcategoryController::class);
 
 Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
-

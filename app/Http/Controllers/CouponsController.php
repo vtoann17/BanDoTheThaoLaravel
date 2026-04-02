@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Coupons;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CouponsController extends Controller
 {
@@ -49,7 +50,7 @@ class CouponsController extends Controller
     {
         $coupons = Coupons::findOrFail($id);
         $data = $request->validate([
-            'code' => 'required|string|max:50|unique:coupons,code',
+            'code'            => ['required', 'string', 'max:50', Rule::unique('coupons', 'code')->ignore($id)],
             'discount_type' => 'required|in:percent,fixed',
             'discount_value' => 'required|numeric|min:0',
             'min_order_value' => 'nullable|numeric|min:0'
