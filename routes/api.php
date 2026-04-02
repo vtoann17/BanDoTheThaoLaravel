@@ -15,6 +15,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AddressController;
+use App\Http\Controllers\CartController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,17 +39,22 @@ Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'
 
 // xem dữ liệu (public)
 Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
+Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
 Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
+Route::apiResource('subcategories', SubcategoryController::class)->only(['index', 'show']);
 Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
 Route::apiResource('coupons', CouponsController::class)->only(['index', 'show']);
 Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
 Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
 Route::apiResource('users', UserController::class)->only(['index', 'show']);
+Route::apiResource('attribute-value', AttributeValueController::class)->only(['index', 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/getUser', [AuthController::class, 'user']);
     Route::apiResource('reviews', ReviewsController::class);
+    Route::apiResource('addresses', AddressController::class);
+    Route::apiResource('cart', CartController::class);
 });
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
@@ -61,14 +68,5 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
     Route::apiResource('variant-value', VariantValueController::class);
 });
-
-Route::apiResource('categories', CategoriesController::class);
-Route::apiResource('subcategories', SubcategoryController::class);
-Route::apiResource('products', ProductsController::class);
-Route::apiResource('attribute-value', AttributeValueController::class);
-Route::apiResource('brands', BrandsController::class);
-Route::apiResource('reviews', ReviewsController::class);
-Route::apiResource('coupons', CouponsController::class);
-Route::apiResource('subcategories', SubcategoryController::class);
 
 Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);

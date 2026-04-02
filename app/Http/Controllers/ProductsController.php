@@ -97,7 +97,66 @@ class ProductsController extends Controller
     {
         return Product::with(['subcategory.category', 'brand'])->findOrFail($id);
     }
+    public function detail($slug)
+{
+    $product = Product::with([
+        'subcategory.category',
+        'brand',
+        'variants.values.attribute'
+    ])
+        ->where('slug', $slug)
+        ->where('status', 1)
+        ->first();
 
+    if (!$product) {
+        return response()->json(['message' => 'Not found'], 404);
+    }
+    $attributes = [];
+    foreach ($product->variants as $variant) {
+        foreach ($variant->values as $value) {
+            $attr = $value->attribute;
+
+            if (!$attr) continue;
+
+            if (!isset($attributes[$attr->id])) {
+                $attributes[$attr->id] = [
+                    'id' => $attr->id,
+                    'name' => $attr->name,
+                    'values' => []
+                ];
+            }
+            $attributes[$attr->id]['values'][] = [
+                'id' => $value->id,
+                'value' => $value->value
+            ];
+        }
+    }
+    foreach ($attributes as &$attr) {
+        $attr['values'] = collect($attr['values'])
+            ->unique('id')
+            ->values();
+    }
+
+    return response()->json([
+        'id' => $product->id,
+        'name' => $product->name,
+        'price' => $product->price,
+        'image' => $product->image,
+        'brand' => $product->brand,
+        'subcategory' => $product->subcategory,
+        'variants' => $product->variants->map(function ($v) {
+            return [
+                'id' => $v->id,
+                'price' => $v->price,
+                'stock' => $v->stock,
+                'sku' => $v->sku,
+                'img' => $v->img,
+                'attr_values' => $v->values->pluck('id')
+            ];
+        }),
+        'attributes' => array_values($attributes)
+    ]);
+}
     /**
      * Update the specified resource in storage.
      */
