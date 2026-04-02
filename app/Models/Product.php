@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Brands;
 use App\Models\Subcategory;
+use App\Models\Variant;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Product extends Model
@@ -30,5 +31,9 @@ class Product extends Model
     public function subcategory()
 {
     return $this->belongsTo(Subcategory::class);
+}
+public function variants()
+{
+    return $this->hasMany(Variant::class, 'product_id');
 }
 }
