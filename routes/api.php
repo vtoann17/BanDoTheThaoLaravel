@@ -55,6 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('reviews', ReviewsController::class);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
+    Route::post('change-password', [UserController::class, 'changePassword']);
 });
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
