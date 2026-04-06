@@ -16,6 +16,9 @@ use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\ShippingController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +48,10 @@ Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
 Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
 Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
 Route::apiResource('attribute-value', AttributeValueController::class)->only(['index', 'show']);
+Route::get('/provinces', [ShippingController::class, 'provinces']);
+Route::get('/districts/{province_id}', [ShippingController::class, 'districts']);
+Route::get('/wards/{district_id}', [ShippingController::class, 'wards']);
+Route::post('/shipping-fee', [ShippingController::class, 'calculateFee']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -52,7 +59,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('reviews', ReviewsController::class);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
+    Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
+    Route::post('/orders/{orderId}/pay/vnpay', [PaymentController::class, 'createVnpay']);
+    Route::post('/orders/{orderId}/pay/cod',   [PaymentController::class, 'createCod']); // thêm
 });
+
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
@@ -62,7 +73,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('attribute-value', AttributeValueController::class)->except(['index', 'show']);
     Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
     Route::apiResource('variant-value', VariantValueController::class);
+    Route::apiResource('orders', OrderController::class)->only(['update', 'destroy']); // sửa: dùng only thay except
 });
+
+// VNPay callback - không cần auth
+Route::get('/payment/return', [PaymentController::class, 'return']);
+Route::post('/payment/ipn',   [PaymentController::class, 'ipn']);
 
 Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
 

@@ -27,13 +27,16 @@ class AddressController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'province_id'    => 'required',
-            'district_id'    => 'required',
-            'ward_code'      => 'required',
+            'province_id' => 'required|integer',
+            'province_name' => 'required|string',
+            'district_id' => 'required|integer',
+            'district_name' => 'required|string',
+            'ward_code' => 'required|string',
+            'ward_name' => 'required|string',
             'address_detail' => 'required|string|max:255',
-            'receiver_name'  => 'required|string|max:255',
-            'phone'          => 'required|string|max:20',
-            'is_default'     => 'nullable|boolean',
+            'receiver_name' => 'required|string|max:255',
+            'phone' => 'required|regex:/^[0-9]{9,11}$/',
+            'is_default' => 'nullable|boolean',
         ]);
 
         $data['user_id'] = auth()->id();
@@ -72,13 +75,16 @@ class AddressController extends Controller
         }
 
         $data = $request->validate([
-            'province_id'    => 'required',
-            'district_id'    => 'required',
-            'ward_code'      => 'required',
+            'province_id' => 'required|integer',
+            'province_name' => 'required|string',
+            'district_id' => 'required|integer',
+            'district_name' => 'required|string',
+            'ward_code' => 'required|string',
+            'ward_name' => 'required|string',
             'address_detail' => 'required|string|max:255',
-            'receiver_name'  => 'required|string|max:255',
-            'phone'          => 'required|string|max:20',
-            'is_default'     => 'nullable|boolean',
+            'receiver_name' => 'required|string|max:255',
+            'phone' => 'required|regex:/^[0-9]{9,11}$/',
+            'is_default' => 'nullable|boolean',
         ]);
         if (!empty($data['is_default'])) {
             Address::where('user_id', auth()->id())

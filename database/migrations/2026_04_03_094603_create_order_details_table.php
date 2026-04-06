@@ -10,28 +10,26 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::create('addresses', function (Blueprint $table) {
+    {
+        Schema::create('order_details', function (Blueprint $table) {
         $table->id();
-        $table->foreignId('user_id')
+        $table->foreignId('order_id')
+              ->constrained('orders')
+              ->cascadeOnDelete();
+        $table->foreignId('variant_id')
               ->constrained()
               ->cascadeOnDelete();
-        $table->integer('province_id'); 
-        $table->integer('district_id');
-        $table->string('ward_code');  
-        $table->string('address_detail');
-        $table->string('receiver_name');
-        $table->string('phone');
-        $table->boolean('is_default')->default(false);
+        $table->integer('quantity');
+        $table->integer('price');
         $table->timestamps();
     });
-}
+    }
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::dropIfExists('addresses');
+        Schema::dropIfExists('order_details');
     }
 };
