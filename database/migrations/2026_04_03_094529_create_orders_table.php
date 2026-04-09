@@ -16,7 +16,7 @@ return new class extends Migration {
                 ->constrained()
                 ->cascadeOnDelete();
             $table->integer('total_amount');
-            $table->enum('payment_method', ['cod', 'vnpay']);
+            $table->enum('payment_method', ['cod', 'vnpay', 'momo']);
             $table->enum('payment_status', ['pending', 'paid', 'failed'])
                 ->default('pending');
             $table->enum('order_status', ['pending', 'confirmed', 'shipping', 'completed', 'cancelled'])
