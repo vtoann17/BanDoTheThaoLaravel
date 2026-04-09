@@ -17,6 +17,7 @@ use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\FavouritesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
     Route::post('change-password', [UserController::class, 'changePassword']);
+    
 });
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('users', UserController::class)->except(['index', 'show']);

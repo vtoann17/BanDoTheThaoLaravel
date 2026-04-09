@@ -10,9 +10,42 @@ class ReviewsController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Reviews::all());
+        $query = Reviews::with(['user:id,name,email', 'product:id,name,image']);
+
+        // Tìm kiếm theo comment hoặc tên sản phẩm
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('comment', 'like', "%{$search}%")
+                    ->orWhereHas('product', fn($p) => $p->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // Lọc theo số sao
+        if ($rating = $request->input('rating')) {
+            $query->where('rating', (int) $rating);
+        }
+
+        // Sắp xếp
+        $allowedSorts = ['id', 'rating', 'created_at'];
+        $sortBy  = in_array($request->input('sort_by'), $allowedSorts)
+            ? $request->input('sort_by')
+            : 'id';
+        $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+        $query->orderBy($sortBy, $sortDir);
+
+        // Phân trang
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $result  = $query->paginate($perPage);
+
+        return response()->json([
+            'data'         => $result->items(),
+            'total'        => $result->total(),
+            'current_page' => $result->currentPage(),
+            'last_page'    => $result->lastPage(),
+            'per_page'     => $result->perPage(),
+        ]);
     }
 
     /**
