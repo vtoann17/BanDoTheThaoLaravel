@@ -12,6 +12,10 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'payment/vnpay/ipn',
-    ];
+    'payment/vnpay/ipn',
+    'payment/vnpay/return',  // thêm dòng này
+    'api/payment/vnpay/return',  // thêm dòng này (phòng trường hợp có prefix api)
+    'api/momo/notify',
+    'api/momo/return',
+];
 }

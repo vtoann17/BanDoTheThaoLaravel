@@ -9,6 +9,7 @@ use App\Models\OrderDetail;
 use App\Models\Cart;
 use App\Models\Address;
 
+
 class OrderController extends Controller
 {
     /**
@@ -58,7 +59,7 @@ class OrderController extends Controller
         $user = $request->user();
         $data = $request->validate([
             'address_id' => 'required|exists:addresses,id',
-            'payment_method' => 'required|in:vnpay,cod',
+            'payment_method' => 'required|in:vnpay,cod,momo',
             'shipping_fee'   => 'nullable|integer|min:0',
         ]);
         $address = Address::where('id', $data['address_id'])

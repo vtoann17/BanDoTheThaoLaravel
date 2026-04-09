@@ -55,12 +55,26 @@
 <body>
     <div class="container">
         <div class="header">
-            <h2>🎉 Đặt hàng thành công!</h2>
+            <h2>
+                @if($order->payment_method === 'momo' || $order->payment_method === 'vnpay')
+                    🎉 Thanh toán thành công!
+                @else
+                    🎉 Đặt hàng thành công!
+                @endif
+            </h2>
         </div>
         <div class="body">
             <p>Xin chào <strong>{{ $order->user->name }}</strong>,</p>
             <p>Đơn hàng <strong>#{{ $order->id }}</strong> của bạn đã được xác nhận.</p>
-            <p>Phương thức thanh toán: <strong>COD (Thanh toán khi nhận hàng)</strong></p>
+            <p>Phương thức thanh toán: <strong>
+                @if($order->payment_method === 'momo')
+                    Ví MoMo (Đã thanh toán)
+                @elseif($order->payment_method === 'vnpay')
+                    VNPay (Đã thanh toán)
+                @else
+                    COD (Thanh toán khi nhận hàng)
+                @endif
+            </strong></p>
 
             <table>
                 <thead>
@@ -91,8 +105,7 @@
             </p>
             <p style="border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 8px;">
                 Tổng thanh toán:
-                <span
-                    class="total">{{ number_format(($order->total_amount ?? 0) + ($order->shipping_fee ?? 0), 0, ',', '.') }}đ</span>
+                <span class="total">{{ number_format(($order->total_amount ?? 0) + ($order->shipping_fee ?? 0), 0, ',', '.') }}đ</span>
             </p>
         </div>
     </div>
