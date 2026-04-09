@@ -31,9 +31,23 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
     'google' => [
-    'client_id' => env('GOOGLE_CLIENT_ID'),
-    'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-    'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+    'vnpay' => [
+        'tmn_code' => env('VNPAY_TMN_CODE'),
+        'hash_secret' => env('VNPAY_HASH_SECRET'),
+        'url' => env('VNPAY_URL'),
+        'return_url' => env('VNPAY_RETURN_URL'),
+    ],
+    'momo' => [
+    'partner_code' => env('MOMO_PARTNER_CODE'),
+    'access_key'   => env('MOMO_ACCESS_KEY'),
+    'secret_key'   => env('MOMO_SECRET_KEY'),
+    'endpoint'     => env('MOMO_ENDPOINT'),
+    'return_url'   => env('MOMO_RETURN_URL'),
+    'notify_url'   => env('MOMO_NOTIFY_URL'),
 ],
 
 ];

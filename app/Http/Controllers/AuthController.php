@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -112,6 +113,12 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
-        return response()->json($request->user());
+        $userId = $request->user()->id;
+
+        $user = Cache::remember("user_{$userId}", 300, function () use ($request) {
+            return $request->user();
+        });
+
+        return response()->json($user);
     }
 }
