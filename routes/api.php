@@ -10,6 +10,7 @@ use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\FavouritesController;
 use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
@@ -76,6 +77,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/getUser', [AuthController::class, 'user']);
     Route::apiResource('reviews', ReviewsController::class);
+    Route::get('/favourites', [FavouritesController::class, 'index']);      // Lấy danh sách
+    Route::post('/favourites', [FavouritesController::class, 'store']);    // Thêm vào yêu thích
+    Route::delete('/favourites/{productId}', [FavouritesController::class, 'destroy']);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
     Route::post('orders/{id}/reorder', [CartController::class, 'reorder']);
