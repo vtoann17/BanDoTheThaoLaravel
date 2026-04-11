@@ -21,6 +21,7 @@ use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\MoMoController;
+use App\Http\Controllers\OrderCancellationController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -58,6 +59,7 @@ Route::apiResource('attribute-value', AttributeValueController::class)
 Route::apiResource('variant', VariantController::class)
     ->only(['index', 'show'])
     ->middleware('cache.response:1800');
+Route::post('/coupons/apply', [CouponsController::class, 'apply']);
 Route::apiResource('coupons', CouponsController::class)
     ->only(['index', 'show'])
     ->middleware('cache.response:300');
@@ -78,11 +80,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('reviews', ReviewsController::class);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
+    Route::post('orders/{id}/reorder', [CartController::class, 'reorder']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
     Route::post('change-password', [UserController::class, 'changePassword']);
     Route::post('/orders/{orderId}/pay/vnpay', [PaymentController::class, 'createVnpay']);
     Route::post('/orders/{orderId}/pay/cod', [PaymentController::class, 'createCod']);
     Route::post('/momo/pay', [MoMoController::class, 'pay']);
+    Route::patch('orders/{id}/cancel', [OrderCancellationController::class, 'cancel']);
 });
 
 

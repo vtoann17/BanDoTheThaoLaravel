@@ -60,7 +60,10 @@ class OrderController extends Controller
         $data = $request->validate([
             'address_id' => 'required|exists:addresses,id',
             'payment_method' => 'required|in:vnpay,cod,momo',
-            'shipping_fee'   => 'nullable|integer|min:0',
+            'shipping_fee' => 'nullable|integer|min:0',
+
+            'coupon_code' => 'nullable|string',
+            'discount' => 'nullable|integer|min:0',
         ]);
         $address = Address::where('id', $data['address_id'])
             ->where('user_id', $user->id)
@@ -82,13 +85,22 @@ class OrderController extends Controller
             }
         }
 
-        $total = $cartItems->sum(fn($item) => $item->quantity * $item->variant->price);
+        $subtotal = $cartItems->sum(
+            fn($item) => $item->quantity * $item->variant->price
+        );
+
+        $shipping = $data['shipping_fee'] ?? 0;
+        $discount = $data['discount'] ?? 0;
+
+        $total = $subtotal + $shipping - $discount;
 
         $order = Order::create([
             'user_id' => $user->id,
             'address_id' => $address->id,
             'total_amount' => $total,
-            'shipping_fee'   => $data['shipping_fee'] ?? 0, 
+            'shipping_fee' => $shipping,
+            'coupon_code' => $data['coupon_code'] ?? null,
+            'discount' => $discount,
             'payment_method' => $data['payment_method'],
             'payment_status' => 'pending',
             'order_status' => 'pending',
@@ -137,22 +149,22 @@ class OrderController extends Controller
      * Update the specified resource in storage.
      */
     public function update(Request $request, $id)
-{
-    $user = $request->user();
-    if (!$user || $user->role !== 'admin') {
-        return response()->json(['message' => 'Không có quyền'], 403);
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Không có quyền'], 403);
+        }
+        $order = Order::findOrFail($id);
+        $data = $request->validate([
+            'order_status' => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
+            'payment_status' => 'nullable|in:pending,paid,failed',
+        ]);
+        $order->update($data);
+        return response()->json([
+            'message' => 'Cập nhật thành công',
+            'data' => $order
+        ]);
     }
-    $order = Order::findOrFail($id);
-    $data = $request->validate([
-        'order_status' => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
-        'payment_status' => 'nullable|in:pending,paid,failed',
-    ]);
-    $order->update($data);
-    return response()->json([
-        'message' => 'Cập nhật thành công',
-        'data' => $order
-    ]);
-}
 
     /**
      * Remove the specified resource from storage.

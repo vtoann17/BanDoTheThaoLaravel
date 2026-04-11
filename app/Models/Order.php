@@ -14,11 +14,16 @@ class Order extends Model
         'user_id',
         'total_amount',
         'address_id', 
+        'coupon_code', 
         'shipping_fee',
+        'discount',
         'payment_method',
         'payment_status', 
         'order_status',     
         'vnpay_txn_ref',
+        'vnpay_transaction_no',
+        'momo_trans_id', 
+        'cancel_reason',
         'paid_at',
     ];
 

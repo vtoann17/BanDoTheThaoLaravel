@@ -6,6 +6,7 @@ use App\Models\Cart;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Variant;
+use App\Models\Order;
 
 class CartController extends Controller
 {
@@ -86,6 +87,57 @@ class CartController extends Controller
         return response()->json([
             'message' => 'Thêm vào giỏ hàng thành công',
             'data' => $item
+        ]);
+    }
+    public function reorder(Request $request, $orderId)
+    {
+        $user = $request->user();
+        $order = Order::with('items.variant')->findOrFail($orderId);
+
+        if ($order->user_id !== $user->id) {
+            return response()->json(['message' => 'Không có quyền'], 403);
+        }
+
+        $added = 0;
+        $outOfStock = [];
+
+        foreach ($order->items as $item) {
+            $variant = $item->variant;
+
+            if (!$variant || $variant->stock <= 0) {
+                $outOfStock[] = $variant?->sku ?? 'unknown';
+                continue;
+            }
+
+            $cartItem = Cart::where('user_id', $user->id)
+                ->where('variant_id', $item->variant_id)
+                ->first();
+
+            if ($cartItem) {
+                $newQty = $cartItem->quantity + $item->quantity;
+                if ($variant->stock < $newQty) {
+                    $outOfStock[] = $variant->sku;
+                    continue;
+                }
+                $cartItem->update([
+                    'quantity' => $newQty,
+                    'price' => $variant->price,
+                ]);
+            } else {
+                Cart::create([
+                    'user_id' => $user->id,
+                    'variant_id' => $item->variant_id,
+                    'quantity' => $item->quantity,
+                    'price' => $variant->price,
+                ]);
+            }
+            $added++;
+        }
+
+        return response()->json([
+            'message' => $added > 0 ? 'Đã thêm vào giỏ hàng' : 'Không có sản phẩm nào còn hàng',
+            'added' => $added,
+            'out_of_stock' => $outOfStock,
         ]);
     }
 
