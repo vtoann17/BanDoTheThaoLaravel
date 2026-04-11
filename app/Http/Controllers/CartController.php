@@ -29,7 +29,7 @@ class CartController extends Controller
                     : ($product?->image ? $baseUrl . '/storage/' . $product->image : null);
 
                 $attrs = $variant?->values
-                        ?->map(fn($av) => [
+                    ?->map(fn($av) => [
                         'name' => $av->attribute?->name,
                         'value' => $av->value,
                     ]) ?? collect();

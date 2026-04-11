@@ -1,4 +1,5 @@
 <?php
+
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\VariantController;
@@ -14,11 +15,11 @@ use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\FavouritesController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\MoMoController;
+
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -34,7 +35,7 @@ Route::get('/payment/vnpay/ipn', [PaymentController::class, 'ipn']);
 Route::get('/momo/return', [MoMoController::class, 'return']);
 Route::post('/momo/notify', [MoMoController::class, 'notify']);
 
-// PUBLIC APIs
+// ── PUBLIC APIs ──────────────────────────────────────────────
 Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
 Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
 
@@ -54,7 +55,7 @@ Route::get('/districts/{province_id}', [ShippingController::class, 'districts'])
 Route::get('/wards/{district_id}', [ShippingController::class, 'wards']);
 Route::post('/shipping-fee', [ShippingController::class, 'calculateFee']);
 
-// USER
+// ── USER (cần đăng nhập) ─────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/getUser', [AuthController::class, 'user']);
@@ -62,8 +63,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('reviews', ReviewsController::class);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
-
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
+
+    Route::patch('/orders/{id}/cancel', [OrderController::class, 'cancel']);
+
     Route::post('change-password', [UserController::class, 'changePassword']);
 
     Route::post('/orders/{orderId}/pay/vnpay', [PaymentController::class, 'createVnpay']);
@@ -71,7 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/momo/pay', [MoMoController::class, 'pay']);
 });
 
-// ADMIN
+// ── ADMIN ────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);

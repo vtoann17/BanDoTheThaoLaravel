@@ -25,15 +25,16 @@ class Product extends Model
 
     public function brand(): BelongsTo
     {
-        return $this->belongsTo(Brands::class);
-        
+        return $this->belongsTo(Brands::class, 'brand_id');
     }
+
     public function subcategory()
-{
-    return $this->belongsTo(Subcategory::class);
-}
-public function variants()
-{
-    return $this->hasMany(Variant::class, 'product_id');
-}
+    {
+        return $this->belongsTo(Subcategory::class);
+    }
+
+    public function variants()
+    {
+        return $this->hasMany(Variant::class, 'product_id');
+    }
 }
