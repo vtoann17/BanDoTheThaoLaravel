@@ -115,7 +115,7 @@ class AuthController extends Controller
     {
         $userId = $request->user()->id;
 
-        $user = Cache::tags(['users'])->remember("user_{$userId}", 300, function () use ($request) {
+        $user = Cache::remember("user_{$userId}", 300, function () use ($request) {
             return $request->user();
         });
 

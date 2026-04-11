@@ -11,7 +11,8 @@ class ProductsController extends Controller
     public function index(Request $request)
     {
         $cacheKey = 'products_index_' . md5(json_encode($request->query()));
-        $result = Cache::tags(['products'])->remember($cacheKey, 300, function () use ($request) {
+
+        $result = Cache::remember($cacheKey, 300, function () use ($request) {
             $query = Product::select('id', 'name', 'slug', 'price', 'image', 'status', 'subcategory_id', 'brand_id')
                 ->with(['subcategory:id,name,slug', 'brand:id,name,slug,image']);
 
@@ -72,9 +73,9 @@ class ProductsController extends Controller
         ], 201);
     }
 
-   public function show($id)
+    public function show($id)
     {
-        $product = Cache::tags(['products'])->remember("product_id_{$id}", 300, function () use ($id) {
+        $product = Cache::remember("product_id_{$id}", 300, function () use ($id) {
             return Product::select('id', 'name', 'slug', 'price', 'image', 'status', 'description', 'subcategory_id', 'brand_id')
                 ->with([
                     'subcategory:id,name,slug,category_id',
@@ -89,7 +90,7 @@ class ProductsController extends Controller
 
     public function detail($slug)
     {
-        $product = Cache::tags(['products'])->remember("product_slug_{$slug}", 300, function () use ($slug) {
+        $product = Cache::remember("product_slug_{$slug}", 300, function () use ($slug) {
             $product = Product::select('id', 'name', 'slug', 'price', 'image', 'description', 'subcategory_id', 'brand_id')
                 ->with([
                     'subcategory:id,name,slug,category_id',
@@ -144,7 +145,6 @@ class ProductsController extends Controller
 
         return response()->json($product);
     }
-
 
     public function update(Request $request, $id)
     {

@@ -1,11 +1,8 @@
 <?php
-
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VariantValueController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\ProductsController;
@@ -17,6 +14,7 @@ use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\FavouritesController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
@@ -73,10 +71,10 @@ Route::get('/wards/{district_id}', [ShippingController::class, 'wards'])
     ->middleware('cache.response:86400');
 Route::post('/shipping-fee', [ShippingController::class, 'calculateFee']);
 
-
+// USER
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/getUser', [AuthController::class, 'user'])->middleware('cache.response:300');
+    Route::get('/getUser', [AuthController::class, 'user']);
     Route::apiResource('reviews', ReviewsController::class);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
@@ -89,7 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('orders/{id}/cancel', [OrderCancellationController::class, 'cancel']);
 });
 
-
+// ADMIN
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
