@@ -3,17 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\OrderDetail;
 use App\Models\Cart;
 use App\Models\Address;
+use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
 
 class OrderController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    // ================== DANH SÁCH ==================
     public function index(Request $request)
     {
         $user = $request->user();
@@ -41,35 +39,36 @@ class OrderController extends Controller
 
         $sortBy = in_array($request->sort_by, ['id', 'total_amount', 'created_at'])
             ? $request->sort_by
-            : 'id';
+            : 'created_at';
+
         $sortDir = $request->sort_dir === 'asc' ? 'asc' : 'desc';
 
-        $perPage = in_array((int) $request->per_page, [2, 5, 10, 20, 50])
-            ? (int) $request->per_page
+        $perPage = in_array((int)$request->per_page, [2, 5, 10, 20, 50])
+            ? (int)$request->per_page
             : 10;
 
         $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 
         return response()->json([
-            'data'         => $result->items(),
-            'total'        => $result->total(),
-            'per_page'     => $result->perPage(),
+            'data' => $result->items(),
+            'total' => $result->total(),
+            'per_page' => $result->perPage(),
             'current_page' => $result->currentPage(),
-            'last_page'    => $result->lastPage(),
+            'last_page' => $result->lastPage(),
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // ================== TẠO ĐƠN ==================
     public function store(Request $request)
     {
         $user = $request->user();
 
         $data = $request->validate([
-            'address_id'     => 'required|exists:addresses,id',
+            'address_id' => 'required|exists:addresses,id',
             'payment_method' => 'required|in:vnpay,cod,momo',
-            'shipping_fee'   => 'nullable|integer|min:0',
+            'shipping_fee' => 'nullable|integer|min:0',
+            'coupon_code' => 'nullable|string',
+            'discount' => 'nullable|integer|min:0',
         ]);
 
         $address = Address::where('id', $data['address_id'])
@@ -77,9 +76,7 @@ class OrderController extends Controller
             ->firstOrFail();
 
         $cartItems = Cart::with([
-            'variant' => function ($q) {
-                $q->lockForUpdate();
-            }
+            'variant' => fn($q) => $q->lockForUpdate()
         ])->where('user_id', $user->id)->get();
 
         if ($cartItems->isEmpty()) {
@@ -89,30 +86,39 @@ class OrderController extends Controller
         foreach ($cartItems as $item) {
             if ($item->variant->stock < $item->quantity) {
                 return response()->json([
-                    'message' => 'Sản phẩm "' . $item->variant->sku . '" không đủ số lượng trong kho',
+                    'message' => 'Sản phẩm "' . $item->variant->sku . '" không đủ số lượng',
                 ], 400);
             }
         }
 
-        $total = $cartItems->sum(fn($item) => $item->quantity * $item->variant->price);
+        $subtotal = $cartItems->sum(
+            fn($item) => $item->quantity * $item->variant->price
+        );
+
+        $shipping = $data['shipping_fee'] ?? 0;
+        $discount = $data['discount'] ?? 0;
+        $total = $subtotal + $shipping - $discount;
 
         $order = Order::create([
-            'user_id'        => $user->id,
-            'address_id'     => $address->id,
-            'total_amount'   => $total,
-            'shipping_fee'   => $data['shipping_fee'] ?? 0,
+            'user_id' => $user->id,
+            'address_id' => $address->id,
+            'total_amount' => $total,
+            'shipping_fee' => $shipping,
+            'coupon_code' => $data['coupon_code'] ?? null,
+            'discount' => $discount,
             'payment_method' => $data['payment_method'],
             'payment_status' => 'pending',
-            'order_status'   => 'pending',
+            'order_status' => 'pending',
         ]);
 
         foreach ($cartItems as $item) {
             OrderDetail::create([
-                'order_id'   => $order->id,
+                'order_id' => $order->id,
                 'variant_id' => $item->variant_id,
-                'quantity'   => $item->quantity,
-                'price'      => $item->variant->price,
+                'quantity' => $item->quantity,
+                'price' => $item->variant->price,
             ]);
+
             $item->variant->decrement('stock', $item->quantity);
         }
 
@@ -120,13 +126,11 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Đặt hàng thành công',
-            'data'    => $order->load('items.variant.product'),
+            'data' => $order->load('items.variant.product'),
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+    // ================== CHI TIẾT ==================
     public function show(Request $request, $id)
     {
         $user = $request->user();
@@ -144,9 +148,7 @@ class OrderController extends Controller
         return response()->json($order);
     }
 
-    /**
-     * Update the specified resource in storage. (Admin only)
-     */
+    // ================== CẬP NHẬT (ADMIN) ==================
     public function update(Request $request, $id)
     {
         $user = $request->user();
@@ -158,7 +160,7 @@ class OrderController extends Controller
         $order = Order::findOrFail($id);
 
         $data = $request->validate([
-            'order_status'   => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
+            'order_status' => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
             'payment_status' => 'nullable|in:pending,paid,failed',
         ]);
 
@@ -166,14 +168,11 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Cập nhật thành công',
-            'data'    => $order,
+            'data' => $order,
         ]);
     }
 
-    /**
-     * Hủy đơn hàng — user tự hủy, chỉ được khi pending hoặc confirmed.
-     * Hoàn lại stock cho các variant trong đơn.
-     */
+    // ================== HỦY ĐƠN ==================
     public function cancel(Request $request, $id)
     {
         $user = $request->user();
@@ -189,28 +188,29 @@ class OrderController extends Controller
 
         if (!in_array($order->order_status, ['pending', 'confirmed'])) {
             return response()->json([
-                'message' => 'Không thể hủy đơn hàng ở trạng thái này',
+                'message' => 'Không thể hủy đơn ở trạng thái này',
             ], 400);
         }
 
-        // Hoàn lại stock
+        // hoàn stock
         foreach ($order->items as $item) {
             if ($item->variant) {
                 $item->variant->increment('stock', $item->quantity);
             }
         }
 
-        $order->update(['order_status' => 'cancelled']);
+        $order->update([
+            'order_status' => 'cancelled',
+            'cancel_reason' => $request->input('cancel_reason')
+        ]);
 
         return response()->json([
-            'message' => 'Hủy đơn hàng thành công',
-            'data'    => $order->fresh(),
+            'message' => 'Hủy đơn thành công',
+            'data' => $order->fresh(),
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage. (Admin only)
-     */
+    // ================== XOÁ (ADMIN) ==================
     public function destroy($id, Request $request)
     {
         $user = $request->user();

@@ -23,7 +23,6 @@ class PaymentController extends Controller
         $this->vnp_ReturnUrl = config('services.vnpay.return_url');
     }
 
-
     public function createCod(Request $request, $orderId)
     {
         $user = $request->user();
@@ -32,27 +31,21 @@ class PaymentController extends Controller
         if ($order->user_id !== $user->id) {
             return response()->json(['message' => 'Không có quyền'], 403);
         }
-
         if ($order->payment_method !== 'cod') {
             return response()->json(['message' => 'Đơn hàng không phải COD'], 400);
         }
-
         if ($order->payment_status !== 'pending') {
             return response()->json(['message' => 'Đơn hàng đã được xử lý'], 400);
         }
 
-        $order->update([
-            'order_status' => 'confirmed',
-        ]);
+        $order->update(['order_status' => 'confirmed']);
 
-        Mail::to($user->email)->send(new OrderConfirmedMail($order->fresh('items.variant.product', 'user')));
+        Mail::to($user->email)->send(
+            new OrderConfirmedMail($order->fresh('items.variant.product', 'user'))
+        );
 
-        return response()->json([
-            'message' => 'Đặt hàng thành công',
-            'data' => $order,
-        ]);
+        return response()->json(['message' => 'Đặt hàng thành công', 'data' => $order]);
     }
-
 
     public function createVnpay(Request $request, $orderId)
     {
@@ -62,15 +55,14 @@ class PaymentController extends Controller
         if ($order->user_id !== $user->id) {
             return response()->json(['message' => 'Không có quyền'], 403);
         }
-
         if ($order->payment_method !== 'vnpay') {
             return response()->json(['message' => 'Đơn hàng không phải VNPay'], 400);
         }
-
         if ($order->payment_status !== 'pending') {
             return response()->json(['message' => 'Đơn hàng đã được xử lý'], 400);
         }
-        $amount = (int) $order->total_amount + (int) $order->shipping_fee;
+
+        $amount = (int) $order->total_amount;
 
         $url = $this->buildPaymentUrl(
             orderId: $order->id,
@@ -81,29 +73,29 @@ class PaymentController extends Controller
         return response()->json(['payment_url' => $url]);
     }
 
-
     public function return(Request $request)
     {
         $params = $request->query();
 
         if (!$this->verifySignature($params)) {
             Log::warning('VNPay return: invalid signature', $params);
-            return redirect(env('FRONTEND_URL') . '/ordersuccess?error=invalid_signature');
+            return redirect(env('FRONTEND_URL') . '/orderfailed?error=invalid_signature');
         }
 
         $orderId = explode('_', $params['vnp_TxnRef'])[0];
         $order = Order::with('items.variant.product', 'user')->find($orderId);
 
         if (!$order) {
-            return redirect(env('FRONTEND_URL') . '/ordersuccess?error=order_not_found');
+            return redirect(env('FRONTEND_URL') . '/orderfailed?error=order_not_found');
         }
 
         if ($params['vnp_ResponseCode'] === '00') {
             if ($order->payment_status === 'pending') {
                 $order->update([
                     'payment_status' => 'paid',
-                    'vnpay_txn_ref'  => $params['vnp_TransactionNo'] ?? null,
-                    'paid_at'        => now(),
+                    'vnpay_txn_ref' => $params['vnp_TxnRef'] ?? null,
+                    'vnpay_transaction_no' => $params['vnp_TransactionNo'] ?? null,
+                    'paid_at' => now(),
                 ]);
 
                 try {
@@ -111,17 +103,19 @@ class PaymentController extends Controller
                 } catch (\Exception $e) {
                     Log::error('VNPay return: gửi mail thất bại', [
                         'order_id' => $order->id,
-                        'error'    => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
 
             return redirect(env('FRONTEND_URL') . '/ordersuccess?order_id=' . $order->id);
         }
+        $order->update([
+            'payment_status' => 'failed',
+            'order_status' => 'cancelled',
+        ]);
 
-        $order->update(['payment_status' => 'failed']);
-
-        return redirect(env('FRONTEND_URL') . '/ordersuccess?error=' . $params['vnp_ResponseCode']);
+        return redirect(env('FRONTEND_URL') . '/orderfailed?order_id=' . $order->id);
     }
 
     public function ipn(Request $request)
@@ -139,17 +133,18 @@ class PaymentController extends Controller
             return response()->json(['RspCode' => '01', 'Message' => 'Order not found']);
         }
 
-        $expectedAmount = (int) (($order->total_amount + $order->shipping_fee) * 100);
+        $expectedAmount = (int) ($order->total_amount * 100);
         $receivedAmount = (int) $params['vnp_Amount'];
 
         if ($receivedAmount !== $expectedAmount) {
             Log::warning('VNPay IPN amount mismatch', [
-                'order_id'        => $orderId,
+                'order_id' => $orderId,
                 'expected_amount' => $expectedAmount,
                 'received_amount' => $receivedAmount,
             ]);
             return response()->json(['RspCode' => '04', 'Message' => 'Amount mismatch']);
         }
+
         if ($order->payment_status !== 'pending') {
             return response()->json(['RspCode' => '02', 'Message' => 'Already confirmed']);
         }
@@ -158,18 +153,24 @@ class PaymentController extends Controller
             if ($params['vnp_ResponseCode'] === '00') {
                 $order->update([
                     'payment_status' => 'paid',
-                    'vnpay_txn_ref'  => $params['vnp_TransactionNo'] ?? null,
-                    'paid_at'        => now(),
+                    'vnpay_txn_ref' => $params['vnp_TxnRef'] ?? null,
+                    'vnpay_transaction_no' => $params['vnp_TransactionNo'] ?? null,
+                    'paid_at' => now(),
                 ]);
 
-                Mail::to($order->user->email)->send(new OrderConfirmedMail($order->load('items.variant.product')));
+                Mail::to($order->user->email)->send(
+                    new OrderConfirmedMail($order->load('items.variant.product'))
+                );
             } else {
-                $order->update(['payment_status' => 'failed']);
+                $order->update([
+                    'payment_status' => 'failed',
+                    'order_status' => 'cancelled',
+                ]);
             }
         } catch (\Exception $e) {
             Log::error('VNPay IPN update failed', [
                 'order_id' => $orderId,
-                'error'    => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
             return response()->json(['RspCode' => '99', 'Message' => 'Unknown error']);
         }
@@ -183,33 +184,33 @@ class PaymentController extends Controller
         $expire = date('YmdHis', strtotime('+15 minutes', strtotime($startTime)));
 
         $params = [
-            'vnp_Version'   => '2.1.0',
-            'vnp_TmnCode'   => $this->vnp_TmnCode,
-            'vnp_Amount'    => $amount * 100,
-            'vnp_Command'   => 'pay',
-            'vnp_CreateDate'=> $startTime,
-            'vnp_CurrCode'  => 'VND',
-            'vnp_IpAddr'    => $ipAddr,
-            'vnp_Locale'    => 'vn',
+            'vnp_Version' => '2.1.0',
+            'vnp_TmnCode' => $this->vnp_TmnCode,
+            'vnp_Amount' => $amount * 100,
+            'vnp_Command' => 'pay',
+            'vnp_CreateDate' => $startTime,
+            'vnp_CurrCode' => 'VND',
+            'vnp_IpAddr' => $ipAddr,
+            'vnp_Locale' => 'vn',
             'vnp_OrderInfo' => 'Thanh_toan_don_hang_' . $orderId,
             'vnp_OrderType' => 'other',
             'vnp_ReturnUrl' => $this->vnp_ReturnUrl,
-            'vnp_TxnRef'    => $orderId . '_' . $startTime,
-            'vnp_ExpireDate'=> $expire,
+            'vnp_TxnRef' => $orderId . '_' . $startTime,
+            'vnp_ExpireDate' => $expire,
         ];
 
         ksort($params);
 
-        $hashParts  = [];
+        $hashParts = [];
         $queryParts = [];
 
         foreach ($params as $key => $value) {
-            $hashParts[]  = urlencode($key) . '=' . urlencode($value);
+            $hashParts[] = urlencode($key) . '=' . urlencode($value);
             $queryParts[] = urlencode($key) . '=' . urlencode($value);
         }
 
-        $hashData   = implode('&', $hashParts);
-        $query      = implode('&', $queryParts);
+        $hashData = implode('&', $hashParts);
+        $query = implode('&', $queryParts);
         $secureHash = hash_hmac('sha512', $hashData, $this->vnp_HashSecret);
 
         return $this->vnp_Url . '?' . $query . '&vnp_SecureHash=' . $secureHash;
