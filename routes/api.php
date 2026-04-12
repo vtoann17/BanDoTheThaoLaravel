@@ -2,6 +2,7 @@
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\VariantController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\VariantValueController;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\SubcategoryController;
@@ -92,6 +93,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // ADMIN
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    Route::apiResource('users', UserController::class)->except(['index', 'show']);
+    Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
