@@ -15,7 +15,6 @@ use App\Http\Controllers\CouponsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\FavouritesController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
