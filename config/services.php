@@ -49,4 +49,8 @@ return [
         'return_url'   => env('MOMO_RETURN_URL'),
         'notify_url'   => env('MOMO_NOTIFY_URL'),
     ],
+
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+    ],
 ];

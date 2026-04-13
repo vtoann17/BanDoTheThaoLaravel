@@ -21,11 +21,15 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\MoMoController;
 use App\Http\Controllers\OrderCancellationController;
-
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
 
+
+
+
+Route::post('/chatbot', [ChatbotController::class, 'chat']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
