@@ -22,6 +22,10 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\MoMoController;
 use App\Http\Controllers\OrderCancellationController;
 
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ContactController;
+use Illuminate\Support\Facades\Route;
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
@@ -109,3 +113,44 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('variant-value', VariantValueController::class);
     Route::apiResource('orders', OrderController::class)->only(['update', 'destroy']);
 });
+
+
+
+
+// Gửi form liên hệ
+Route::post('/contacts', [ContactController::class, 'store']);
+ 
+// Chat trực tuyến
+Route::prefix('chat')->group(function () {
+    // Bắt đầu phiên chat mới
+    Route::post('/start', [ChatController::class, 'start']);
+ 
+    // Gửi & nhận tin nhắn trong phiên chat
+    Route::get('/{contact}/messages',  [ChatController::class, 'getMessages']);
+    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
+});
+
+//  ADMIN ROUTES (yêu cầu đăng nhập)
+// ═══════════════════════════════════════════════════════
+ 
+Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+ 
+    // ── Quản lý liên hệ ─────────────────────────────
+    Route::prefix('contacts')->group(function () {
+        Route::get('/',                              [ContactController::class, 'index']);        // GET    /api/admin/contacts
+        Route::get('/stats',                         [ContactController::class, 'stats']);        // GET    /api/admin/contacts/stats
+        Route::get('/{contact}',                     [ContactController::class, 'show']);         // GET    /api/admin/contacts/{id}
+        Route::patch('/{contact}/status',            [ContactController::class, 'updateStatus']); // PATCH  /api/admin/contacts/{id}/status
+        Route::patch('/{contact}/assign',            [ContactController::class, 'assign']);       // PATCH  /api/admin/contacts/{id}/assign
+        Route::delete('/{contact}',                  [ContactController::class, 'destroy']);      // DELETE /api/admin/contacts/{id}
+ 
+        // Admin trả lời (cả form lẫn chat)
+        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
+    });
+ 
+    // ── Chat trực tuyến ─────────────────────────────
+    Route::prefix('chat')->group(function () {
+        Route::get('/active', [ChatController::class, 'activeChats']);                           // GET    /api/admin/chat/active
+    });
+});
+ 
