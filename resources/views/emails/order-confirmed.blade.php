@@ -33,6 +33,12 @@
             color: #1a73e8;
         }
 
+        .discount {
+            font-size: 16px;
+            font-weight: bold;
+            color: #16a34a;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -82,6 +88,7 @@
                         <th>Sản phẩm</th>
                         <th>Số lượng</th>
                         <th>Đơn giá</th>
+                        <th>Thành tiền</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -90,22 +97,35 @@
                             <td>{{ $item->variant->product->name ?? 'N/A' }} ({{ $item->variant->sku }})</td>
                             <td>{{ $item->quantity }}</td>
                             <td>{{ number_format($item->price, 0, ',', '.') }}đ</td>
+                            <td>{{ number_format($item->price * $item->quantity, 0, ',', '.') }}đ</td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
 
+            {{-- Tính subtotal từ items --}}
+            @php
+                $subtotal = $order->items->sum(fn($item) => $item->price * $item->quantity);
+            @endphp
+
             <p style="margin-top: 16px;">
                 Tiền hàng:
-                <span class="total">{{ number_format($order->total_amount, 0, ',', '.') }}đ</span>
+                <span class="total">{{ number_format($subtotal, 0, ',', '.') }}đ</span>
             </p>
             <p>
                 Phí vận chuyển:
                 <span class="total">{{ number_format($order->shipping_fee ?? 0, 0, ',', '.') }}đ</span>
             </p>
+            @if(($order->discount ?? 0) > 0)
+            <p>
+                Giảm giá:
+                <span class="discount">-{{ number_format($order->discount, 0, ',', '.') }}đ</span>
+            </p>
+            @endif
+            {{-- total_amount = subtotal + shipping - discount (đã tính sẵn ở backend) --}}
             <p style="border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 8px;">
                 Tổng thanh toán:
-                <span class="total">{{ number_format(($order->total_amount ?? 0) + ($order->shipping_fee ?? 0), 0, ',', '.') }}đ</span>
+                <span class="total">{{ number_format($order->total_amount ?? 0, 0, ',', '.') }}đ</span>
             </p>
         </div>
     </div>
