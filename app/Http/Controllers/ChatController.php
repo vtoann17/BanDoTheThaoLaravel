@@ -8,6 +8,7 @@ use App\Models\ChatMessage;
 use App\Models\Contact;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class ChatController extends Controller
 {
@@ -21,16 +22,16 @@ class ChatController extends Controller
      */
     public function start(Request $request): JsonResponse
     {
-        $request->validate([
-            'name'  => ['required', 'string', 'max:100'],
-            'email' => ['nullable', 'email', 'max:150'],
-        ], [
+       $request->validate([
+    'name'  => ['required', 'string', 'max:100'],
+    'email' => ['required', 'email', 'max:150'], // 👈 bắt buộc luôn
+], [
             'name.required' => 'Vui lòng nhập tên của bạn.',
         ]);
 
         $contact = Contact::create([
             'name'    => $request->name,
-            'email'   => $request->email ?? 'guest@chat.local',
+            'email' => $request->email,
             'message' => 'Khách hàng bắt đầu chat trực tuyến.',
             'topic'   => 'other',
             'type'    => 'chat',
@@ -158,35 +159,45 @@ class ChatController extends Controller
      * Admin gửi phản hồi (cả chat lẫn form)
      */
     public function adminReply(Request $request, Contact $contact): JsonResponse
-    {
-        $request->validate([
-            'message'      => ['required', 'string', 'max:2000'],
-            'mark_resolved'=> ['nullable', 'boolean'],
-            'send_email'   => ['nullable', 'boolean'],
-            'admin_name'   => ['nullable', 'string', 'max:100'],
-        ]);
+{
+    $request->validate([
+        'message'       => ['required', 'string', 'max:2000'],
+        'mark_resolved' => ['nullable', 'boolean'],
+        'send_email'    => ['nullable', 'boolean'],
+        'admin_name'    => ['nullable', 'string', 'max:100'],
+    ]);
 
-        $adminName = $request->admin_name ?? 'Admin BanDoThao';
+    $adminName = $request->admin_name ?? 'Admin BanDoThao';
 
-        // Lưu tin nhắn vào thread
-        $chatMessage = ChatMessage::create([
-            'contact_id'  => $contact->id,
-            'sender'      => 'admin',
-            'sender_name' => $adminName,
-            'message'     => $request->message,
-            'is_read'     => true,
-        ]);
+    // ─── Lưu tin nhắn ─────────────────────────────
+    $chatMessage = ChatMessage::create([
+        'contact_id'  => $contact->id,
+        'sender'      => 'admin',
+        'sender_name' => $adminName,
+        'message'     => $request->message,
+        'is_read'     => true,
+    ]);
 
-        // Cập nhật trạng thái contact
-        $newStatus = $request->boolean('mark_resolved') ? 'resolved' : 'in_progress';
-        $updateData = ['status' => $newStatus];
-        if ($newStatus === 'resolved') {
-            $updateData['resolved_at'] = now();
-        }
-        $contact->update($updateData);
+    // ─── Cập nhật trạng thái ─────────────────────
+    $newStatus  = $request->boolean('mark_resolved') ? 'resolved' : 'in_progress';
+    $updateData = ['status' => $newStatus];
 
-        // Gửi email phản hồi cho khách
-        if ($request->boolean('send_email', true)) {
+    if ($newStatus === 'resolved') {
+        $updateData['resolved_at'] = now();
+    }
+
+    $contact->update($updateData);
+
+    // ─── Gửi email phản hồi ─────────────────────
+    $emailSent = false;
+
+    if ($request->boolean('send_email', true)) {
+    
+        // 🔍 Check email hợp lệ + không phải email fake
+        if (
+            filter_var($contact->email, FILTER_VALIDATE_EMAIL) &&
+            !str_contains($contact->email, 'guest@')
+        ) {
             try {
                 Mail::send('emails.admin-reply', [
                     'contact'   => $contact,
@@ -196,22 +207,29 @@ class ChatController extends Controller
                     $mail->to($contact->email, $contact->name)
                          ->subject('Phản hồi từ BanDoThao: ' . $contact->topicLabel());
                 });
-            } catch (\Exception $e) {
-                \Log::warning('Gửi email phản hồi thất bại: ' . $e->getMessage());
-            }
-        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Đã gửi phản hồi thành công.',
-            'data'    => [
-                'message_id'   => $chatMessage->id,
-                'new_status'   => $contact->status,
-                'status_label' => $contact->statusLabel(),
-                'email_sent'   => $request->boolean('send_email', true),
-            ],
-        ]);
+                $emailSent = true;
+
+            } catch (\Exception $e) {
+    dd($e->getMessage());
+}
+        } else {
+            \Log::warning('⚠️ Email không hợp lệ: ' . $contact->email);
+        }
     }
+
+    // ─── Response ───────────────────────────────
+    return response()->json([
+        'success' => true,
+        'message' => 'Đã gửi phản hồi thành công.',
+        'data'    => [
+            'message_id'   => $chatMessage->id,
+            'new_status'   => $contact->status,
+            'status_label' => $contact->statusLabel(),
+            'email_sent'   => $emailSent, // 👈 chuẩn hơn
+        ],
+    ]);
+}
 
     /**
      * GET /api/admin/chat/active

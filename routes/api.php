@@ -37,7 +37,7 @@ Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendOtp']);
 Route::post('/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
 Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
-Route::get('/payment/vnpay/return', [PaymentController::class, 'return']);
+Route::get('/payment/vnpay/return', [PaymentController::class, 'return']); 
 Route::get('/payment/vnpay/ipn', [PaymentController::class, 'ipn']);
 Route::get('/momo/return', [MoMoController::class, 'return']);
 Route::post('/momo/notify', [MoMoController::class, 'notify']);

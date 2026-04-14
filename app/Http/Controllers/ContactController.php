@@ -30,7 +30,7 @@ class ContactController extends Controller
         try {
             Mail::send('emails.contact-confirm', ['contact' => $contact], function ($mail) use ($contact) {
                 $mail->to($contact->email, $contact->name)
-                     ->subject('Chúng tôi đã nhận được tin nhắn của bạn - BanDoThao');
+                     ->subject('Chúng tôi đã nhận được tin nhắn của bạn - BanDoTheThao');
             });
 
             // Gửi email thông báo cho admin
