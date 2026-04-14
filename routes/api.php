@@ -102,7 +102,6 @@ Route::middleware('auth:sanctum')->group(function () {
 // ADMIN
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
-
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
@@ -120,41 +119,48 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
 
 
-
-// Gửi form liên hệ
 Route::post('/contacts', [ContactController::class, 'store']);
- 
-// Chat trực tuyến
 Route::prefix('chat')->group(function () {
-    // Bắt đầu phiên chat mới
     Route::post('/start', [ChatController::class, 'start']);
- 
-    // Gửi & nhận tin nhắn trong phiên chat
+    Route::get('/{contact}/messages', [ChatController::class, 'getMessages']);
+    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
+});
+
+
+Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+    Route::prefix('contacts')->group(function () {
+        Route::get('/', [ContactController::class, 'index']);        // GET    /api/admin/contacts
+        Route::get('/stats', [ContactController::class, 'stats']);        // GET    /api/admin/contacts/stats
+        Route::get('/{contact}', [ContactController::class, 'show']);         // GET    /api/admin/contacts/{id}
+        Route::patch('/{contact}/status', [ContactController::class, 'updateStatus']); // PATCH  /api/admin/contacts/{id}/status
+        Route::patch('/{contact}/assign', [ContactController::class, 'assign']);       // PATCH  /api/admin/contacts/{id}/assign
+        Route::delete('/{contact}', [ContactController::class, 'destroy']);      // DELETE /api/admin/contacts/{id}
+
+        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
+    });
+
+});
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::prefix('chat')->group(function () {
+    Route::post('/start', [ChatController::class, 'start']);
+
     Route::get('/{contact}/messages',  [ChatController::class, 'getMessages']);
     Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
 });
 
-//  ADMIN ROUTES (yêu cầu đăng nhập)
-// ═══════════════════════════════════════════════════════
- 
 Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
- 
-    // ── Quản lý liên hệ ─────────────────────────────
+
     Route::prefix('contacts')->group(function () {
-        Route::get('/',                              [ContactController::class, 'index']);        // GET    /api/admin/contacts
-        Route::get('/stats',                         [ContactController::class, 'stats']);        // GET    /api/admin/contacts/stats
-        Route::get('/{contact}',                     [ContactController::class, 'show']);         // GET    /api/admin/contacts/{id}
-        Route::patch('/{contact}/status',            [ContactController::class, 'updateStatus']); // PATCH  /api/admin/contacts/{id}/status
-        Route::patch('/{contact}/assign',            [ContactController::class, 'assign']);       // PATCH  /api/admin/contacts/{id}/assign
-        Route::delete('/{contact}',                  [ContactController::class, 'destroy']);      // DELETE /api/admin/contacts/{id}
- 
-        // Admin trả lời (cả form lẫn chat)
-        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
+        Route::get('/', [ContactController::class, 'index']);
+        Route::get('/stats', [ContactController::class, 'stats']);
+        Route::get('/{contact}', [ContactController::class, 'show']);
+        Route::patch('/{contact}/status', [ContactController::class, 'updateStatus']);
+        Route::patch('/{contact}/assign', [ContactController::class, 'assign']);
+        Route::delete('/{contact}', [ContactController::class, 'destroy']);
+        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);
     });
- 
-    // ── Chat trực tuyến ─────────────────────────────
     Route::prefix('chat')->group(function () {
-        Route::get('/active', [ChatController::class, 'activeChats']);                           // GET    /api/admin/chat/active
+        Route::get('/active', [ChatController::class, 'activeChats']);
     });
+
 });
- 
