@@ -1,4 +1,5 @@
 <?php
+
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\VariantController;
@@ -25,11 +26,9 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\UserCouponController;
 
 
-
-
-Route::post('/chatbot', [ChatbotController::class, 'chat']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
@@ -37,73 +36,67 @@ Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendOtp']);
 Route::post('/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
 Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
+
 Route::get('/payment/vnpay/return', [PaymentController::class, 'return']);
 Route::get('/payment/vnpay/ipn', [PaymentController::class, 'ipn']);
 Route::get('/momo/return', [MoMoController::class, 'return']);
 Route::post('/momo/notify', [MoMoController::class, 'notify']);
-Route::apiResource('products', ProductsController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:600');
-Route::get('/products/{slug}/detail', [ProductsController::class, 'detail'])
-    ->middleware('cache.response:600');
-Route::apiResource('categories', CategoriesController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory'])
-    ->middleware('cache.response:1800');
-Route::apiResource('subcategories', SubcategoryController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::apiResource('brands', BrandsController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::apiResource('attributes', AttributeController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::apiResource('attribute-value', AttributeValueController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::apiResource('variant', VariantController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:1800');
-Route::post('/coupons/apply', [CouponsController::class, 'apply']);
-Route::apiResource('coupons', CouponsController::class)
-    ->only(['index', 'show'])
-    ->middleware('cache.response:300');
-Route::apiResource('users', UserController::class)
-    ->only(['index', 'show']);
-Route::get('/provinces', [ShippingController::class, 'provinces'])
-    ->middleware('cache.response:86400');
-Route::get('/districts/{province_id}', [ShippingController::class, 'districts'])
-    ->middleware('cache.response:86400');
-Route::get('/wards/{district_id}', [ShippingController::class, 'wards'])
-    ->middleware('cache.response:86400');
-Route::post('/shipping-fee', [ShippingController::class, 'calculateFee']);
+Route::middleware('cache.response:600')->group(function () {
+    Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
+    Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
+});
+Route::middleware('cache.response:1800')->group(function () {
+    Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
+    Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
+    Route::apiResource('subcategories', SubcategoryController::class)->only(['index', 'show']);
+    Route::apiResource('brands', BrandsController::class)->only(['index', 'show']);
+    Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
+    Route::apiResource('attribute-value', AttributeValueController::class)->only(['index', 'show']);
+    Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
+});
+Route::middleware('cache.response:300')->group(function () {
+    Route::post('/coupons/apply', [CouponsController::class, 'apply']);
+    Route::apiResource('coupons', CouponsController::class)->only(['index', 'show']);
+});
 
-// USER
+Route::middleware('cache.response:86400')->group(function () {
+    Route::get('/provinces', [ShippingController::class, 'provinces']);
+    Route::get('/districts/{province_id}', [ShippingController::class, 'districts']);
+    Route::get('/wards/{district_id}', [ShippingController::class, 'wards']);
+});
+Route::post('/shipping-fee', [ShippingController::class, 'calculateFee']);
+Route::apiResource('users', UserController::class)->only(['index', 'show']);
+Route::post('/chatbot', [ChatbotController::class, 'chat']);
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::prefix('chat')->group(function () {
+    Route::post('/start', [ChatController::class, 'start']);
+    Route::get('/{contact}/messages', [ChatController::class, 'getMessages']);
+    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
+});
+
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/getUser', [AuthController::class, 'user']);
+    Route::post('/change-password', [UserController::class, 'changePassword']);
     Route::apiResource('reviews', ReviewsController::class);
-    Route::get('/favourites', [FavouritesController::class, 'index']);      // Lấy danh sách
-    Route::post('/favourites', [FavouritesController::class, 'store']);    // Thêm vào yêu thích
-    Route::delete('/favourites/{productId}', [FavouritesController::class, 'destroy']);
     Route::apiResource('addresses', AddressController::class);
     Route::apiResource('cart', CartController::class);
-    Route::post('orders/{id}/reorder', [CartController::class, 'reorder']);
+    Route::get('/favourites', [FavouritesController::class, 'index']);
+    Route::post('/favourites', [FavouritesController::class, 'store']);
+    Route::delete('/favourites/{productId}', [FavouritesController::class, 'destroy']);
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
-    Route::post('change-password', [UserController::class, 'changePassword']);
+    Route::post('orders/{id}/reorder', [CartController::class, 'reorder']);
+    Route::patch('orders/{id}/cancel', [OrderCancellationController::class, 'cancel']);
     Route::post('/orders/{orderId}/pay/vnpay', [PaymentController::class, 'createVnpay']);
     Route::post('/orders/{orderId}/pay/cod', [PaymentController::class, 'createCod']);
     Route::post('/momo/pay', [MoMoController::class, 'pay']);
-    Route::patch('orders/{id}/cancel', [OrderCancellationController::class, 'cancel']);
+    Route::get('/user-coupons', [UserCouponController::class, 'index']);
+Route::post('/user-coupons/claim', [UserCouponController::class, 'claim']);
 });
 
-// ADMIN
-Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
-    Route::apiResource('users', UserController::class)->except(['index', 'show']);
-    Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
@@ -115,40 +108,6 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('variant', VariantController::class)->except(['index', 'show']);
     Route::apiResource('variant-value', VariantValueController::class);
     Route::apiResource('orders', OrderController::class)->only(['update', 'destroy']);
-});
-
-
-
-Route::post('/contacts', [ContactController::class, 'store']);
-Route::prefix('chat')->group(function () {
-    Route::post('/start', [ChatController::class, 'start']);
-    Route::get('/{contact}/messages', [ChatController::class, 'getMessages']);
-    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
-});
-
-
-Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
-    Route::prefix('contacts')->group(function () {
-        Route::get('/', [ContactController::class, 'index']);        // GET    /api/admin/contacts
-        Route::get('/stats', [ContactController::class, 'stats']);        // GET    /api/admin/contacts/stats
-        Route::get('/{contact}', [ContactController::class, 'show']);         // GET    /api/admin/contacts/{id}
-        Route::patch('/{contact}/status', [ContactController::class, 'updateStatus']); // PATCH  /api/admin/contacts/{id}/status
-        Route::patch('/{contact}/assign', [ContactController::class, 'assign']);       // PATCH  /api/admin/contacts/{id}/assign
-        Route::delete('/{contact}', [ContactController::class, 'destroy']);      // DELETE /api/admin/contacts/{id}
-
-        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
-    });
-
-});
-Route::post('/contacts', [ContactController::class, 'store']);
-Route::prefix('chat')->group(function () {
-    Route::post('/start', [ChatController::class, 'start']);
-
-    Route::get('/{contact}/messages',  [ChatController::class, 'getMessages']);
-    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
-});
-
-Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('contacts')->group(function () {
         Route::get('/', [ContactController::class, 'index']);
@@ -159,8 +118,6 @@ Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{contact}', [ContactController::class, 'destroy']);
         Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);
     });
-    Route::prefix('chat')->group(function () {
-        Route::get('/active', [ChatController::class, 'activeChats']);
-    });
 
+    Route::get('/chat/active', [ChatController::class, 'activeChats']);
 });

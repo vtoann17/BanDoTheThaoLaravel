@@ -13,13 +13,54 @@ class UserCouponController extends Controller
     {
         $userId = $request->user()->id;
 
-        $userCoupons = UserCoupon::with('coupon')
-            ->where('user_id', $userId)
-            ->latest()
-            ->get()
-            ->map(fn($uc) => $uc->coupon);
+        $query = UserCoupon::with('coupon')
+            ->where('user_id', $userId);
 
-        return response()->json($userCoupons);
+        if ($request->filled('status')) {
+            $now = now();
+
+            match ($request->status) {
+                'expiring' => $query->whereHas('coupon', function ($q) use ($now) {
+                        $q->where('is_active', true)
+                        ->whereBetween('expired_at', [$now, $now->copy()->addDays(3)]);
+                    }),
+
+                'used' => $query->where('is_used', true),
+
+                default => null,
+            };
+        }
+
+        // Filter theo trạng thái hợp lệ
+        if ($request->filled('status')) {
+            $now = now();
+            if ($request->status === 'active') {
+                $query->whereHas('coupon', function ($q) use ($now) {
+                    $q->where('is_active', true)
+                        ->where(fn($q) => $q->whereNull('expired_at')->orWhere('expired_at', '>', $now));
+                });
+            } elseif ($request->status === 'expired') {
+                $query->whereHas('coupon', function ($q) use ($now) {
+                    $q->where('is_active', false)
+                        ->orWhere('expired_at', '<=', $now);
+                });
+            }
+        }
+
+        // Sort
+        $sortBy = in_array($request->sort_by, ['claimed_at', 'coupon_id']) ? $request->sort_by : 'claimed_at';
+        $sortDir = $request->sort_dir === 'asc' ? 'asc' : 'desc';
+        $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;
+
+        $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+        return response()->json([
+            'data' => collect($result->items())->map(fn($uc) => $uc->coupon),
+            'total' => $result->total(),
+            'per_page' => $result->perPage(),
+            'current_page' => $result->currentPage(),
+            'last_page' => $result->lastPage(),
+        ]);
     }
 
     public function claim(Request $request)
@@ -45,14 +86,14 @@ class UserCouponController extends Controller
         }
 
         UserCoupon::create([
-            'user_id'    => $userId,
-            'coupon_id'  => $coupon->id,
+            'user_id' => $userId,
+            'coupon_id' => $coupon->id,
             'claimed_at' => now(),
         ]);
 
         return response()->json([
             'message' => 'Nhận mã thành công',
-            'data'    => $coupon,
+            'data' => $coupon,
         ], 201);
     }
 }
