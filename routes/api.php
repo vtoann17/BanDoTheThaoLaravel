@@ -138,8 +138,29 @@ Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
 
         Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
     });
-    Route::prefix('chat')->group(function () {
-        Route::get('/active', [ChatController::class, 'activeChats']);                           // GET    /api/admin/chat/active
-    });
+
+});
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::prefix('chat')->group(function () {
+    Route::post('/start', [ChatController::class, 'start']);
+
+    Route::get('/{contact}/messages',  [ChatController::class, 'getMessages']);
+    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
 });
 
+Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+
+    Route::prefix('contacts')->group(function () {
+        Route::get('/', [ContactController::class, 'index']);
+        Route::get('/stats', [ContactController::class, 'stats']);
+        Route::get('/{contact}', [ContactController::class, 'show']);
+        Route::patch('/{contact}/status', [ContactController::class, 'updateStatus']);
+        Route::patch('/{contact}/assign', [ContactController::class, 'assign']);
+        Route::delete('/{contact}', [ContactController::class, 'destroy']);
+        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);
+    });
+    Route::prefix('chat')->group(function () {
+        Route::get('/active', [ChatController::class, 'activeChats']);
+    });
+
+});
