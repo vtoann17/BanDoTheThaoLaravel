@@ -38,8 +38,6 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Đơn hàng đã được xử lý'], 400);
         }
 
-        $order->update(['order_status' => 'confirmed']);
-
         Mail::to($user->email)->send(
             new OrderConfirmedMail($order->fresh('items.variant.product', 'user'))
         );

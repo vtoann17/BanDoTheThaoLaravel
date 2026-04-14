@@ -2,6 +2,7 @@
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\VariantController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\VariantValueController;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\SubcategoryController;
@@ -20,7 +21,15 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\MoMoController;
 use App\Http\Controllers\OrderCancellationController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ChatbotController;
+use Illuminate\Support\Facades\Route;
 
+
+
+
+Route::post('/chatbot', [ChatbotController::class, 'chat']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/auth/google', [AuthController::class, 'googleRedirect']);
@@ -92,6 +101,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // ADMIN
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::apiResource('users', UserController::class)->except(['index', 'show']);
+    Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('users', UserController::class)->except(['index', 'show']);
     Route::apiResource('products', ProductsController::class)->except(['index', 'show']);
     Route::apiResource('categories', CategoriesController::class)->except(['index', 'show']);
@@ -104,3 +116,30 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('variant-value', VariantValueController::class);
     Route::apiResource('orders', OrderController::class)->only(['update', 'destroy']);
 });
+
+
+
+Route::post('/contacts', [ContactController::class, 'store']);
+Route::prefix('chat')->group(function () {
+    Route::post('/start', [ChatController::class, 'start']);
+    Route::get('/{contact}/messages', [ChatController::class, 'getMessages']);
+    Route::post('/{contact}/messages', [ChatController::class, 'sendMessage']);
+});
+
+
+Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+    Route::prefix('contacts')->group(function () {
+        Route::get('/', [ContactController::class, 'index']);        // GET    /api/admin/contacts
+        Route::get('/stats', [ContactController::class, 'stats']);        // GET    /api/admin/contacts/stats
+        Route::get('/{contact}', [ContactController::class, 'show']);         // GET    /api/admin/contacts/{id}
+        Route::patch('/{contact}/status', [ContactController::class, 'updateStatus']); // PATCH  /api/admin/contacts/{id}/status
+        Route::patch('/{contact}/assign', [ContactController::class, 'assign']);       // PATCH  /api/admin/contacts/{id}/assign
+        Route::delete('/{contact}', [ContactController::class, 'destroy']);      // DELETE /api/admin/contacts/{id}
+
+        Route::post('/{contact}/reply', [ChatController::class, 'adminReply']);                  // POST   /api/admin/contacts/{id}/reply
+    });
+    Route::prefix('chat')->group(function () {
+        Route::get('/active', [ChatController::class, 'activeChats']);                           // GET    /api/admin/chat/active
+    });
+});
+
