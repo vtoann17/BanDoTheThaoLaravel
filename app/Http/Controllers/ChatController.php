@@ -90,7 +90,7 @@ class ChatController extends Controller
         }
 
         // Broadcast real-time (nếu dùng Laravel Reverb / Pusher)
-        // broadcast(new NewChatMessage($chatMessage))->toOthers();
+        broadcast(new NewChatMessage($chatMessage))->toOthers();
 
         $formatted = [
             'id'          => $chatMessage->id,

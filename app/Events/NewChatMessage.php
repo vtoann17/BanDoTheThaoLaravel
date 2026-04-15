@@ -6,45 +6,40 @@ use App\Models\ChatMessage;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class NewChatMessage implements ShouldBroadcast
+class NewChatMessage implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public ChatMessage $chatMessage)
+    public $message;
+
+    public function __construct(ChatMessage $message)
     {
+        // Format lại dữ liệu giống như API trả về để Frontend dễ xử lý
+        $this->message = [
+            'id'          => $message->id,
+            'contact_id'  => $message->contact_id,
+            'sender'      => $message->sender,
+            'sender_name' => $message->sender_name,
+            'message'     => $message->message,
+            'created_at'  => $message->created_at->format('H:i'),
+            'time_ago'    => $message->created_at->diffForHumans(),
+        ];
     }
 
-    /**
-     * Kênh broadcast:
-     * - Khách hàng lắng nghe: chat.{contact_id}
-     * - Admin lắng nghe tất cả: admin.chat
-     */
     public function broadcastOn(): array
     {
+        // Kênh công khai dựa trên contact_id
         return [
-            new Channel("chat.{$this->chatMessage->contact_id}"),
-            new Channel('admin.chat'),
+            new Channel('chat.' . $this->message['contact_id']),
         ];
     }
 
     public function broadcastAs(): string
     {
-        return 'new.message';
-    }
-
-    public function broadcastWith(): array
-    {
-        return [
-            'id'          => $this->chatMessage->id,
-            'contact_id'  => $this->chatMessage->contact_id,
-            'sender'      => $this->chatMessage->sender,
-            'sender_name' => $this->chatMessage->sender_name,
-            'message'     => $this->chatMessage->message,
-            'created_at'  => $this->chatMessage->created_at->format('H:i'),
-        ];
+        return 'message.sent';
     }
 }
