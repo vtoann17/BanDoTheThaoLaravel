@@ -41,11 +41,12 @@ Route::get('/payment/vnpay/return', [PaymentController::class, 'return']);
 Route::get('/payment/vnpay/ipn', [PaymentController::class, 'ipn']);
 Route::get('/momo/return', [MoMoController::class, 'return']);
 Route::post('/momo/notify', [MoMoController::class, 'notify']);
-Route::middleware('cache.response:600')->group(function () {
-    Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
-    Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
-});
-Route::middleware('cache.response:1800')->group(function () {
+Route::get('/products/suggest', [ProductsController::class, 'suggest']);
+Route::get('/products/flash-sale', [ProductsController::class, 'flashSale']);
+Route::get('/products/sale', [ProductsController::class, 'saleProducts']);
+Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
+Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
+
     Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
     Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
     Route::apiResource('subcategories', SubcategoryController::class)->only(['index', 'show']);
@@ -53,7 +54,6 @@ Route::middleware('cache.response:1800')->group(function () {
     Route::apiResource('attributes', AttributeController::class)->only(['index', 'show']);
     Route::apiResource('attribute-value', AttributeValueController::class)->only(['index', 'show']);
     Route::apiResource('variant', VariantController::class)->only(['index', 'show']);
-});
 Route::middleware('cache.response:300')->group(function () {
     Route::post('/coupons/apply', [CouponsController::class, 'apply']);
     Route::apiResource('coupons', CouponsController::class)->only(['index', 'show']);
@@ -92,7 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders/{orderId}/pay/cod', [PaymentController::class, 'createCod']);
     Route::post('/momo/pay', [MoMoController::class, 'pay']);
     Route::get('/user-coupons', [UserCouponController::class, 'index']);
-Route::post('/user-coupons/claim', [UserCouponController::class, 'claim']);
+    Route::post('/user-coupons/claim', [UserCouponController::class, 'claim']);
 });
 
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {

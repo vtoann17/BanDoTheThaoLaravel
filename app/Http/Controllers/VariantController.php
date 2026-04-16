@@ -59,11 +59,25 @@ class VariantController extends Controller
             'end' => 'nullable|date',
             'attribute_values' => 'required|array'
         ]);
+        $incomingValues = array_map('intval', $request->attribute_values);
+        sort($incomingValues);
+        $existingVariants = Variant::where('product_id', $request->product_id)->with('values')->get();
+
+        foreach ($existingVariants as $existingVariant) {
+            $existingValues = $existingVariant->values->pluck('id')->toArray();
+            sort($existingValues);
+            if ($existingValues === $incomingValues) {
+                return response()->json([
+                    'message' => 'Tổ hợp thuộc tính này đã tồn tại cho sản phẩm. Mã SKU trùng: ' . $existingVariant->sku
+                ], 422);
+            }
+        }
+
         if ($request->hasFile('img')) {
             $data['img'] = $request->file('img')->store('variants', 'public');
         }
+        
         $variant = Variant::create($data);
-
         $variant->values()->sync($data['attribute_values']);
 
         return response()->json($variant->load('values'), 201);
@@ -93,6 +107,24 @@ class VariantController extends Controller
             'end' => 'nullable|date',
             'attribute_values' => 'required|array'
         ]);
+        $incomingValues = array_map('intval', $request->attribute_values);
+        sort($incomingValues);
+        $existingVariants = Variant::where('product_id', $request->product_id)
+                                   ->where('id', '!=', $variant->id)
+                                   ->with('values')
+                                   ->get();
+
+        foreach ($existingVariants as $existingVariant) {
+            $existingValues = $existingVariant->values->pluck('id')->toArray();
+            sort($existingValues);
+
+            if ($existingValues === $incomingValues) {
+                return response()->json([
+                    'message' => 'Bạn không thể đổi sang tổ hợp này vì nó bị trùng với biến thể: ' . $existingVariant->sku
+                ], 422);
+            }
+        }
+
         if ($request->hasFile('img')) {
             if ($variant->img) {
                 \Storage::disk('public')->delete($variant->img);
@@ -101,8 +133,8 @@ class VariantController extends Controller
         } else {
             unset($data['img']);
         }
+        
         $variant->update($data);
-
         $variant->values()->sync($data['attribute_values']);
 
         return response()->json($variant->load('values'));

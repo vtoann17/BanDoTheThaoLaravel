@@ -5,60 +5,68 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use App\Models\Variant;
 
 class ProductsController extends Controller
 {
     public function index(Request $request)
     {
+        // Tạo Cache Key dựa trên các tham số lọc để tăng tốc độ load
         $cacheKey = 'products_index_' . md5(json_encode($request->query()));
 
-        $result = Cache::remember($cacheKey, 300, function () use ($request) {
+        $result = Cache::tags(['products'])->remember($cacheKey, 300, function () use ($request) {
             $query = Product::select('id', 'name', 'slug', 'price', 'image', 'status', 'subcategory_id', 'brand_id')
-                ->with(['subcategory:id,name,slug', 'brand:id,name,slug,image']);
-
+                ->with(['subcategory:id,name,slug,category_id', 'brand:id,name,slug,image']);
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('slug', 'like', "%{$search}%");
+                        ->orWhere('slug', 'like', "%{$search}%");
                 });
             }
-
-            if ($request->filled('subcategory_id')) $query->where('subcategory_id', $request->subcategory_id);
-            if ($request->filled('brand_id'))       $query->where('brand_id', $request->brand_id);
-            if ($request->filled('status'))         $query->where('status', $request->status);
-            if ($request->filled('min_price'))      $query->where('price', '>=', $request->min_price);
-            if ($request->filled('max_price'))      $query->where('price', '<=', $request->max_price);
-
-            $sortBy  = in_array($request->sort_by, ['id', 'name', 'price', 'created_at']) ? $request->sort_by : 'id';
+            if ($request->filled('category_id')) {
+                $query->whereHas('subcategory', function ($q) use ($request) {
+                    $q->where('category_id', $request->category_id);
+                });
+            }
+            if ($request->filled('subcategory_id'))
+                $query->where('subcategory_id', $request->subcategory_id);
+            if ($request->filled('brand_id'))
+                $query->where('brand_id', $request->brand_id);
+            if ($request->filled('status'))
+                $query->where('status', $request->status);
+            if ($request->filled('min_price'))
+                $query->where('price', '>=', $request->min_price);
+            if ($request->filled('max_price'))
+                $query->where('price', '<=', $request->max_price);
+            $sortBy = in_array($request->sort_by, ['id', 'name', 'price', 'created_at']) ? $request->sort_by : 'id';
             $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-            $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;
+            $perPage = in_array((int) $request->per_page, [5, 10, 20, 50]) ? (int) $request->per_page : 5;
 
             $paginated = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 
             return [
-                'data'         => $paginated->items(),
-                'total'        => $paginated->total(),
-                'per_page'     => $paginated->perPage(),
+                'data' => $paginated->items(),
+                'total' => $paginated->total(),
+                'per_page' => $paginated->perPage(),
                 'current_page' => $paginated->currentPage(),
-                'last_page'    => $paginated->lastPage(),
+                'last_page' => $paginated->lastPage(),
             ];
         });
 
         return response()->json($result);
     }
-
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'           => 'required|max:255',
+            'name' => 'required|max:255',
             'subcategory_id' => 'required|exists:subcategories,id',
-            'brand_id'       => 'required|exists:brands,id',
-            'slug'           => 'required|unique:products',
-            'description'    => 'nullable',
-            'price'          => 'required|numeric',
-            'image'          => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'status'         => 'required|in:0,1'
+            'brand_id' => 'required|exists:brands,id',
+            'slug' => 'required|unique:products',
+            'description' => 'nullable',
+            'price' => 'required|numeric',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'status' => 'required|in:0,1'
         ]);
 
         if ($request->hasFile('image')) {
@@ -69,13 +77,13 @@ class ProductsController extends Controller
 
         return response()->json([
             'message' => 'Thêm sản phẩm thành công!',
-            'data'    => $product
+            'data' => $product
         ], 201);
     }
 
     public function show($id)
     {
-        $product = Cache::remember("product_id_{$id}", 300, function () use ($id) {
+        $product = Cache::tags(['products'])->remember("product_id_{$id}", 300, function () use ($id) {
             return Product::select('id', 'name', 'slug', 'price', 'image', 'status', 'description', 'subcategory_id', 'brand_id')
                 ->with([
                     'subcategory:id,name,slug,category_id',
@@ -90,7 +98,7 @@ class ProductsController extends Controller
 
     public function detail($slug)
     {
-        $product = Cache::remember("product_slug_{$slug}", 300, function () use ($slug) {
+        $product = Cache::tags(['products'])->remember("product_slug_{$slug}", 300, function () use ($slug) {
             $product = Product::select('id', 'name', 'slug', 'price', 'image', 'description', 'subcategory_id', 'brand_id')
                 ->with([
                     'subcategory:id,name,slug,category_id',
@@ -104,7 +112,8 @@ class ProductsController extends Controller
                 ->where('status', 1)
                 ->first();
 
-            if (!$product) return null;
+            if (!$product)
+                return null;
 
             $attributes = $product->variants
                 ->flatMap(fn($v) => $v->values)
@@ -113,37 +122,120 @@ class ProductsController extends Controller
                 ->map(function ($values) {
                     $attr = $values->first()->attribute;
                     return [
-                        'id'     => $attr->id,
-                        'name'   => $attr->name,
+                        'id' => $attr->id,
+                        'name' => $attr->name,
                         'values' => $values->map(fn($v) => ['id' => $v->id, 'value' => $v->value])
-                                          ->unique('id')->values()
+                            ->unique('id')->values()
                     ];
                 })
                 ->values();
 
             return [
-                'id'          => $product->id,
-                'name'        => $product->name,
-                'price'       => $product->price,
-                'image'       => $product->image,
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => $product->price,
+                'image' => $product->image,
                 'description' => $product->description,
-                'brand'       => $product->brand,
+                'brand' => $product->brand,
                 'subcategory' => $product->subcategory,
-                'variants'    => $product->variants->map(fn($v) => [
-                    'id'          => $v->id,
-                    'price'       => $v->price,
-                    'stock'       => $v->stock,
-                    'sku'         => $v->sku,
-                    'img'         => $v->img,
+                'variants' => $product->variants->map(fn($v) => [
+                    'id' => $v->id,
+                    'price' => $v->price,
+                    'stock' => $v->stock,
+                    'sku' => $v->sku,
+                    'img' => $v->img,
                     'attr_values' => $v->values->pluck('id')
                 ]),
-                'attributes'  => $attributes
+                'attributes' => $attributes
             ];
         });
 
-        if (!$product) return response()->json(['message' => 'Not found'], 404);
+        if (!$product)
+            return response()->json(['message' => 'Not found'], 404);
 
         return response()->json($product);
+    }
+    public function flashSale()
+    {
+        $now = now();
+
+        $variants = Variant::with('product:id,name,slug,image')
+            ->where('sale', '>', 0)
+            ->where('start', '<=', $now)
+            ->where('end', '>=', $now)
+            ->where('stock', '>', 0)
+            ->orderBy('sale', 'desc')
+            ->take(8)
+            ->get();
+
+        // Lấy end time sớm nhất để đếm ngược
+        $flashEndTime = $variants->min('end');
+
+        return response()->json([
+            'end_time' => $flashEndTime,
+            'data' => $variants->map(fn($v) => [
+                'variant_id' => $v->id,
+                'product_id' => $v->product->id,
+                'name' => $v->product->name,
+                'slug' => $v->product->slug,
+                'image' => $v->img ?? $v->product->image,
+                'original_price' => $v->price,
+                'sale_percent' => $v->sale,
+                'sale_price' => round($v->price * (1 - $v->sale / 100)),
+                'stock' => $v->stock,
+                'end' => $v->end,
+            ])
+        ]);
+    }
+
+    public function saleProducts()
+    {
+        $now = now();
+
+        $variants = Variant::with('product:id,name,slug,image')
+            ->where('sale', '>', 0)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('end')->orWhere('end', '>=', $now);
+            })
+            ->where('stock', '>', 0)
+            ->orderBy('sale', 'desc')
+            ->take(12)
+            ->get();
+
+        return response()->json([
+            'data' => $variants->map(fn($v) => [
+                'variant_id' => $v->id,
+                'product_id' => $v->product->id,
+                'name' => $v->product->name,
+                'slug' => $v->product->slug,
+                'image' => $v->img ?? $v->product->image,
+                'original_price' => $v->price,
+                'sale_percent' => $v->sale,
+                'sale_price' => round($v->price * (1 - $v->sale / 100)),
+                'stock' => $v->stock,
+            ])
+        ]);
+    }
+    public function suggest(Request $request)
+    {
+        $keyword = $request->keyword;
+        $limit = $request->limit ?? 5;
+
+        if (empty($keyword)) {
+            return response()->json([]);
+        }
+
+        $products = Product::where('name', 'like', '%' . $keyword . '%')
+            ->where('status', 1)
+            ->take($limit)
+            ->get(['id', 'name', 'image', 'price', 'slug']);
+
+        $products->map(function ($product) {
+            $product->image = url('storage/' . $product->image);
+            return $product;
+        });
+
+        return response()->json($products);
     }
 
     public function update(Request $request, $id)
@@ -151,14 +243,14 @@ class ProductsController extends Controller
         $product = Product::findOrFail($id);
 
         $data = $request->validate([
-            'name'           => 'required|max:255',
+            'name' => 'required|max:255',
             'subcategory_id' => 'required|exists:subcategories,id',
-            'brand_id'       => 'required|exists:brands,id',
-            'slug'           => 'required|unique:products,slug,' . $id,
-            'description'    => 'nullable',
-            'price'          => 'required|numeric',
-            'image'          => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'status'         => 'required|in:0,1'
+            'brand_id' => 'required|exists:brands,id',
+            'slug' => 'required|unique:products,slug,' . $id,
+            'description' => 'nullable',
+            'price' => 'required|numeric',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'status' => 'required|in:0,1'
         ]);
 
         if ($request->hasFile('image')) {
@@ -169,7 +261,7 @@ class ProductsController extends Controller
 
         return response()->json([
             'message' => 'Cập nhật sản phẩm thành công!',
-            'data'    => $product
+            'data' => $product
         ]);
     }
 
