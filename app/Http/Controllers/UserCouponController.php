@@ -22,32 +22,25 @@ class UserCouponController extends Controller
             match ($request->status) {
                 'expiring' => $query->whereHas('coupon', function ($q) use ($now) {
                         $q->where('is_active', true)
-                        ->whereBetween('expired_at', [$now, $now->copy()->addDays(3)]);
+                          ->whereBetween('end_date', [$now, $now->copy()->addDays(3)]);
                     }),
 
-                'used' => $query->where('is_used', true),
+                'used' => $query->whereNotNull('used_at'),
+
+                'active' => $query->whereHas('coupon', function ($q) use ($now) {
+                        $q->where('is_active', true)
+                          ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>', $now));
+                    }),
+
+                'expired' => $query->whereHas('coupon', function ($q) use ($now) {
+                        $q->where('is_active', false)
+                          ->orWhere('end_date', '<=', $now);
+                    }),
 
                 default => null,
             };
         }
 
-        // Filter theo trạng thái hợp lệ
-        if ($request->filled('status')) {
-            $now = now();
-            if ($request->status === 'active') {
-                $query->whereHas('coupon', function ($q) use ($now) {
-                    $q->where('is_active', true)
-                        ->where(fn($q) => $q->whereNull('expired_at')->orWhere('expired_at', '>', $now));
-                });
-            } elseif ($request->status === 'expired') {
-                $query->whereHas('coupon', function ($q) use ($now) {
-                    $q->where('is_active', false)
-                        ->orWhere('expired_at', '<=', $now);
-                });
-            }
-        }
-
-        // Sort
         $sortBy = in_array($request->sort_by, ['claimed_at', 'coupon_id']) ? $request->sort_by : 'claimed_at';
         $sortDir = $request->sort_dir === 'asc' ? 'asc' : 'desc';
         $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;

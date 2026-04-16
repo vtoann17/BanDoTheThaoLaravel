@@ -70,6 +70,39 @@ class CouponsController extends Controller
         ]);
     }
 
+   
+    public function redeem(Request $request)
+    {
+        $request->validate([
+            'code'        => 'required|string',
+            'order_total' => 'required|numeric|min:0',
+        ]);
+
+        $coupon = Coupons::where('code', $request->code)->lockForUpdate()->first();
+
+        if (!$coupon || !$coupon->isValid()) {
+            return response()->json(['message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn'], 400);
+        }
+
+        if ($request->order_total < $coupon->min_order_value) {
+            return response()->json([
+                'message' => 'Đơn hàng chưa đạt giá trị tối thiểu ' . number_format($coupon->min_order_value) . 'đ',
+            ], 400);
+        }
+
+        $discount = $coupon->calcDiscount($request->order_total);
+
+        $coupon->increment('used_count');
+
+        return response()->json([
+            'message'       => 'Sử dụng mã thành công',
+            'code'          => $coupon->code,
+            'discount_type' => $coupon->discount_type,
+            'discount'      => $discount,
+            'final_total'   => $request->order_total - $discount,
+        ]);
+    }
+
     public function update(Request $request, $id)
     {
         $coupon = Coupons::findOrFail($id);

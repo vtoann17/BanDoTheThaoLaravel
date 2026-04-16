@@ -6,12 +6,13 @@ use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Cart;
 use App\Models\Address;
+use App\Models\Coupons;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 
 class OrderController extends Controller
 {
-    // ================== DANH SÁCH ==================
     public function index(Request $request)
     {
         $user = $request->user();
@@ -50,87 +51,100 @@ class OrderController extends Controller
         $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 
         return response()->json([
-            'data' => $result->items(),
-            'total' => $result->total(),
-            'per_page' => $result->perPage(),
+            'data'         => $result->items(),
+            'total'        => $result->total(),
+            'per_page'     => $result->perPage(),
             'current_page' => $result->currentPage(),
-            'last_page' => $result->lastPage(),
+            'last_page'    => $result->lastPage(),
         ]);
     }
 
-    // ================== TẠO ĐƠN ==================
     public function store(Request $request)
     {
         $user = $request->user();
 
         $data = $request->validate([
-            'address_id' => 'required|exists:addresses,id',
+            'address_id'     => 'required|exists:addresses,id',
             'payment_method' => 'required|in:vnpay,cod,momo',
-            'shipping_fee' => 'nullable|integer|min:0',
-            'coupon_code' => 'nullable|string',
-            'discount' => 'nullable|integer|min:0',
+            'shipping_fee'   => 'nullable|integer|min:0',
+            'coupon_code'    => 'nullable|string',
+            'discount'       => 'nullable|integer|min:0',
         ]);
 
         $address = Address::where('id', $data['address_id'])
             ->where('user_id', $user->id)
             ->firstOrFail();
+        $coupon = null;
+        if (!empty($data['coupon_code'])) {
+            $coupon = Coupons::where('code', $data['coupon_code'])->first();
 
-        $cartItems = Cart::with([
-            'variant' => fn($q) => $q->lockForUpdate()
-        ])->where('user_id', $user->id)->get();
-
-        if ($cartItems->isEmpty()) {
-            return response()->json(['message' => 'Giỏ hàng trống'], 400);
-        }
-
-        foreach ($cartItems as $item) {
-            if ($item->variant->stock < $item->quantity) {
-                return response()->json([
-                    'message' => 'Sản phẩm "' . $item->variant->sku . '" không đủ số lượng',
-                ], 400);
+            if (!$coupon || !$coupon->isValid()) {
+                return response()->json(['message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn'], 400);
             }
         }
 
-        $subtotal = $cartItems->sum(
-            fn($item) => $item->quantity * $item->variant->price
-        );
+        $order = DB::transaction(function () use ($user, $data, $address, $coupon) {
+            $cartItems = Cart::with([
+                'variant' => fn($q) => $q->lockForUpdate()
+            ])->where('user_id', $user->id)->get();
 
-        $shipping = $data['shipping_fee'] ?? 0;
-        $discount = $data['discount'] ?? 0;
-        $total = $subtotal + $shipping - $discount;
+            if ($cartItems->isEmpty()) {
+                throw new \Exception('CART_EMPTY');
+            }
 
-        $order = Order::create([
-            'user_id' => $user->id,
-            'address_id' => $address->id,
-            'total_amount' => $total,
-            'shipping_fee' => $shipping,
-            'coupon_code' => $data['coupon_code'] ?? null,
-            'discount' => $discount,
-            'payment_method' => $data['payment_method'],
-            'payment_status' => 'pending',
-            'order_status' => 'pending',
-        ]);
+            foreach ($cartItems as $item) {
+                if ($item->variant->stock < $item->quantity) {
+                    throw new \Exception('OUT_OF_STOCK:' . $item->variant->sku);
+                }
+            }
 
-        foreach ($cartItems as $item) {
-            OrderDetail::create([
-                'order_id' => $order->id,
-                'variant_id' => $item->variant_id,
-                'quantity' => $item->quantity,
-                'price' => $item->variant->price,
+            $subtotal = $cartItems->sum(
+                fn($item) => $item->quantity * $item->variant->price
+            );
+
+            $shipping = $data['shipping_fee'] ?? 0;
+            $discount = $data['discount'] ?? 0;
+            $total    = $subtotal + $shipping - $discount;
+
+            $order = Order::create([
+                'user_id'        => $user->id,
+                'address_id'     => $address->id,
+                'total_amount'   => $total,
+                'shipping_fee'   => $shipping,
+                'coupon_code'    => $data['coupon_code'] ?? null,
+                'discount'       => $discount,
+                'payment_method' => $data['payment_method'],
+                'payment_status' => 'pending',
+                'order_status'   => 'pending',
             ]);
 
-            $item->variant->decrement('stock', $item->quantity);
-        }
+            foreach ($cartItems as $item) {
+                OrderDetail::create([
+                    'order_id'   => $order->id,
+                    'variant_id' => $item->variant_id,
+                    'quantity'   => $item->quantity,
+                    'price'      => $item->variant->price,
+                ]);
 
-        Cart::where('user_id', $user->id)->delete();
+                $item->variant->decrement('stock', $item->quantity);
+            }
+
+            if ($coupon) {
+                Coupons::where('id', $coupon->id)->lockForUpdate()->first();
+                $coupon->increment('used_count');
+            }
+
+            Cart::where('user_id', $user->id)->delete();
+
+            return $order;
+        });
 
         return response()->json([
             'message' => 'Đặt hàng thành công',
-            'data' => $order->load('items.variant.product'),
+            'data'    => $order->load('items.variant.product'),
         ], 201);
     }
 
-    // ================== CHI TIẾT ==================
     public function show(Request $request, $id)
     {
         $user = $request->user();
@@ -148,7 +162,6 @@ class OrderController extends Controller
         return response()->json($order);
     }
 
-    // ================== CẬP NHẬT (ADMIN) ==================
     public function update(Request $request, $id)
     {
         $user = $request->user();
@@ -160,7 +173,7 @@ class OrderController extends Controller
         $order = Order::findOrFail($id);
 
         $data = $request->validate([
-            'order_status' => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
+            'order_status'   => 'nullable|in:pending,confirmed,shipping,completed,cancelled',
             'payment_status' => 'nullable|in:pending,paid,failed',
         ]);
 
@@ -168,11 +181,9 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Cập nhật thành công',
-            'data' => $order,
+            'data'    => $order,
         ]);
     }
-
-    // ================== HỦY ĐƠN ==================
     public function cancel(Request $request, $id)
     {
         $user = $request->user();
@@ -192,25 +203,31 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // hoàn stock
-        foreach ($order->items as $item) {
-            if ($item->variant) {
-                $item->variant->increment('stock', $item->quantity);
+        DB::transaction(function () use ($order, $request) {
+            foreach ($order->items as $item) {
+                if ($item->variant) {
+                    $item->variant->increment('stock', $item->quantity);
+                }
             }
-        }
 
-        $order->update([
-            'order_status' => 'cancelled',
-            'cancel_reason' => $request->input('cancel_reason')
-        ]);
+            if ($order->coupon_code) {
+                Coupons::where('code', $order->coupon_code)
+                    ->where('used_count', '>', 0)
+                    ->decrement('used_count');
+            }
+
+            $order->update([
+                'order_status'  => 'cancelled',
+                'cancel_reason' => $request->input('cancel_reason'),
+            ]);
+        });
 
         return response()->json([
             'message' => 'Hủy đơn thành công',
-            'data' => $order->fresh(),
+            'data'    => $order->fresh(),
         ]);
     }
 
-    // ================== XOÁ (ADMIN) ==================
     public function destroy($id, Request $request)
     {
         $user = $request->user();
