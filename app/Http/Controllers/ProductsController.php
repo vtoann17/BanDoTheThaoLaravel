@@ -41,7 +41,7 @@ class ProductsController extends Controller
                 $query->where('price', '<=', $request->max_price);
             $sortBy = in_array($request->sort_by, ['id', 'name', 'price', 'created_at']) ? $request->sort_by : 'id';
             $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-            $perPage = in_array((int) $request->per_page, [5, 10, 20, 50]) ? (int) $request->per_page : 5;
+            $perPage = in_array((int) $request->per_page, [4, 5, 8, 10, 20, 50]) ? (int) $request->per_page : 5;
 
             $paginated = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 

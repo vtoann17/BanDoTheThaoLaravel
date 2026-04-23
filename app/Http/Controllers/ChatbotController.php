@@ -75,31 +75,95 @@ class ChatbotController extends Controller
 
     private function buildContext(string $search): array
     {
+        // 1. Phân tích khoảng giá từ câu nói của user
+        $priceRange = $this->parsePriceInfo($search);
+
+        // 2. Lọc từ khóa: Loại bỏ các từ liên quan đến giá/số và các từ giao tiếp để không làm nhiễu
+        $stopWords = [
+            'giá', 'dưới', 'trên', 'từ', 'đến', 'khoảng', 'k', 'tr', 'triệu', 'trieu', 'nhỏ', 'lớn', 'hơn', 'chỉ', 'mức', 'tầm',
+            'tìm', 'mua', 'sản', 'phẩm', 'cho', 'tôi', 'có', 'nào', 'không', 'những', 'các', 'cái', 'loại', 'kiếm', 'xem', 'hàng', 'đồ'
+        ];
+
         $keywords = collect(preg_split('/\s+/', trim($search)))
             ->filter(fn($w) => mb_strlen($w) >= 2)
+            ->filter(fn($w) => !is_numeric(str_replace(['k', 'tr'], '', mb_strtolower($w)))) // Bỏ qua các số hoặc từ như "500", "500k"
+            ->filter(fn($w) => !in_array(mb_strtolower($w), $stopWords))
             ->unique()
             ->values();
 
-        $products = Product::select('id', 'name', 'slug', 'price', 'image', 'subcategory_id', 'brand_id')
+        $query = Product::select('id', 'name', 'slug', 'price', 'image', 'subcategory_id', 'brand_id')
             ->with(['brand:id,name', 'subcategory:id,name,category_id'])
-            ->where('status', 1)
-            ->where(function ($q) use ($search, $keywords) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('slug', 'like', "%{$search}%");
+            ->where('status', 1);
+
+        // 3. Áp dụng điều kiện lọc giá nếu hệ thống phân tích được
+        if ($priceRange) {
+            $query->whereBetween('price', $priceRange);
+        }
+
+        // 4. Áp dụng điều kiện lọc tên nếu người dùng có nhập từ khóa (ngoài giá và stop words)
+        if ($keywords->isNotEmpty()) {
+            $query->where(function ($q) use ($keywords) {
+                // Tạo chuỗi tìm kiếm từ các từ khóa còn lại
+                $searchPhrase = $keywords->implode(' ');
+                $q->where('name', 'like', "%{$searchPhrase}%")
+                  ->orWhere('slug', 'like', "%{$searchPhrase}%");
 
                 foreach ($keywords as $kw) {
                     $q->orWhere('name', 'like', "%{$kw}%")
                       ->orWhere('slug', 'like', "%{$kw}%");
                 }
-            })
-            ->limit(6)
-            ->get();
+            });
+        }
+
+        $products = $query->limit(6)->get();
 
         $brands        = Brands::select('id', 'name', 'slug')->get();
         $categories    = Category::select('id', 'name', 'slug')->get();
         $subcategories = Subcategory::select('id', 'name', 'slug', 'category_id')->get();
 
         return compact('products', 'brands', 'categories', 'subcategories');
+    }
+
+    /**
+     * Hàm trích xuất ý định tìm kiếm theo giá từ tin nhắn người dùng.
+     */
+    private function parsePriceInfo(string $text): ?array
+    {
+        $text = mb_strtolower($text);
+
+        // Chuyển đổi các định dạng viết tắt phổ biến ở VN (k, tr, triệu) thành số thực
+        // Ví dụ: 500k -> 500000, 2 tr -> 2000000
+        $text = preg_replace_callback('/(\d+)\s*(k|tr|triệu|trieu)\b/', function ($matches) {
+            $num = (int)$matches[1];
+            $unit = $matches[2];
+            if ($unit === 'k') return $num * 1000;
+            if (in_array($unit, ['tr', 'triệu', 'trieu'])) return $num * 1000000;
+            return $num;
+        }, $text);
+
+        // Trường hợp 1: Khoảng giá cụ thể (VD: "từ 500000 đến 1000000")
+        if (preg_match('/từ\s+(\d+)\s+(đến|den)\s+(\d+)/', $text, $matches)) {
+            return [(int)$matches[1], (int)$matches[3]];
+        }
+
+        // Trường hợp 2: Dưới mức giá (VD: "dưới 500000", "nhỏ hơn 500000")
+        if (preg_match('/(dưới|nhỏ hơn|<)\s+(\d+)/', $text, $matches)) {
+            return [0, (int)$matches[2]];
+        }
+
+        // Trường hợp 3: Trên mức giá (VD: "trên 1000000", "lớn hơn 1000000")
+        if (preg_match('/(trên|lớn hơn|>)\s+(\d+)/', $text, $matches)) {
+            return [(int)$matches[2], 999999999]; // Đặt mức trần thật cao
+        }
+
+        // Trường hợp 4: Khoảng giá ước lượng (VD: "khoảng 500000") -> lấy dao động +- 20%
+        if (preg_match('/khoảng\s+(\d+)/', $text, $matches)) {
+            $base = (int)$matches[1];
+            return [$base * 0.8, $base * 1.2];
+        }
+
+        // Không tìm thấy điều kiện giá
+        return null; 
     }
 
     private function buildMessages(array $ctx, array $history, string $userMsg): array

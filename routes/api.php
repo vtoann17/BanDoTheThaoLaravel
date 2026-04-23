@@ -46,7 +46,6 @@ Route::get('/products/flash-sale', [ProductsController::class, 'flashSale']);
 Route::get('/products/sale', [ProductsController::class, 'saleProducts']);
 Route::apiResource('products', ProductsController::class)->only(['index', 'show']);
 Route::get('/products/{slug}/detail', [ProductsController::class, 'detail']);
-
     Route::apiResource('categories', CategoriesController::class)->only(['index', 'show']);
     Route::get('categories/{id}/subcategories', [SubcategoryController::class, 'getByCategory']);
     Route::apiResource('subcategories', SubcategoryController::class)->only(['index', 'show']);
