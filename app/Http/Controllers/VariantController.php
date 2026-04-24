@@ -30,7 +30,7 @@ class VariantController extends Controller
 
         $sortBy = in_array($request->sort_by, ['id', 'sku', 'price', 'stock', 'created_at']) ? $request->sort_by : 'id';
         $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = in_array((int) $request->per_page, [4, 10, 20, 50]) ? (int) $request->per_page : 10;
+        $perPage = in_array((int) $request->per_page, [5, 10, 20, 50]) ? (int) $request->per_page : 5;
 
         $result = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 

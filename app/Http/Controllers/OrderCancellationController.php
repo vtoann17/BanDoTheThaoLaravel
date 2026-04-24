@@ -36,7 +36,7 @@ class OrderCancellationController extends Controller
                 $order->update(['payment_status' => 'refund_pending']);
 
                 $refundSuccess = match ($order->payment_method) {
-                    'momo'  => $this->refundMomo($order),
+                    'momo' => $this->refundMomo($order),
                     'vnpay' => $this->refundVnpay($order),
                     default => false,
                 };
@@ -51,8 +51,8 @@ class OrderCancellationController extends Controller
             }
 
             $order->update([
-                'order_status'   => 'cancelled',
-                'cancel_reason'  => $data['cancel_reason'] ?? null,
+                'order_status' => 'cancelled',
+                'cancel_reason' => $data['cancel_reason'] ?? null,
                 'payment_status' => $order->payment_status === 'refund_pending'
                     ? 'refunded'
                     : $order->payment_status,
@@ -61,26 +61,32 @@ class OrderCancellationController extends Controller
 
         return response()->json([
             'message' => 'Hủy đơn hàng thành công',
-            'data'    => $order->fresh()->load('items.variant.product')
+            'data' => $order->fresh()->load('items.variant.product')
         ]);
     }
 
     private function refundMomo(Order $order): bool
     {
-        $partnerCode = config('services.momo.partner_code');
-        $accessKey   = config('services.momo.access_key');
-        $secretKey   = config('services.momo.secret_key');
-        $endpoint    = 'https://test-payment.momo.vn/v2/gateway/api/refund';
+        if (!$order->momo_trans_id) {
+            Log::error("MoMo refund: thiếu momo_trans_id", ['order' => $order->id]);
+            return false;
+        }
 
-        // total_amount đã gồm shipping_fee và đã trừ discount — không cộng thêm
-        $amount    = (int) $order->total_amount;
-        $orderId   = 'REFUND_' . $order->id . '_' . time();
+        $partnerCode = config('services.momo.partner_code');
+        $accessKey = config('services.momo.access_key');
+        $secretKey = config('services.momo.secret_key');
+        $endpoint = 'https://test-payment.momo.vn/v2/gateway/api/refund';
+
+        $amount = (int) $order->total_amount;
         $requestId = (string) time();
-        $transId   = $order->momo_trans_id;
+        $orderId = "REFUND_{$order->id}_{$requestId}";
+        $transId = $order->momo_trans_id;
+
+        sleep(2);
 
         $rawHash = "accessKey={$accessKey}"
             . "&amount={$amount}"
-            . "&description=Hoàn tiền đơn hàng #{$order->id}"
+            . "&description=Refund Order {$order->id}"
             . "&orderId={$orderId}"
             . "&partnerCode={$partnerCode}"
             . "&requestId={$requestId}"
@@ -88,38 +94,40 @@ class OrderCancellationController extends Controller
 
         $signature = hash_hmac('sha256', $rawHash, $secretKey);
 
-        $response = Http::timeout(10)->post($endpoint, [
-            'partnerCode' => $partnerCode,
-            'orderId'     => $orderId,
-            'requestId'   => $requestId,
-            'amount'      => $amount,
-            'transId'     => $transId,
-            'lang'        => 'vi',
-            'description' => 'Hoàn tiền đơn hàng #' . $order->id,
-            'signature'   => $signature,
+        $response = Http::timeout(15)->post($endpoint, [
+            "partnerCode" => $partnerCode,
+            "requestId" => $requestId,
+            "amount" => $amount,
+            "orderId" => $orderId,
+            "transId" => $transId,
+            "lang" => "vi",
+            "description" => "Refund order #{$order->id}",
+            "signature" => $signature
         ]);
 
-        Log::info('MoMo Refund response', $response->json() ?? []);
+        $result = $response->json();
 
-        return $response->successful() && $response->json('resultCode') === 0;
+        Log::info('MoMo Refund response', $result);
+
+        return isset($result['resultCode']) && $result['resultCode'] == 0;
     }
 
     private function refundVnpay(Order $order): bool
     {
-        $tmnCode    = config('services.vnpay.tmn_code');
+        $tmnCode = config('services.vnpay.tmn_code');
         $hashSecret = config('services.vnpay.hash_secret');
-        $endpoint   = 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
+        $endpoint = 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
 
-        $requestId     = date('YmdHis') . '_' . $order->id;
-        $createDate    = date('YmdHis');
-        $transDate     = Carbon::parse($order->paid_at)->format('YmdHis');
+        $requestId = date('YmdHis') . '_' . $order->id;
+        $createDate = date('YmdHis');
+        $transDate = Carbon::parse($order->paid_at)->format('YmdHis');
         // total_amount đã gồm shipping_fee và đã trừ discount — nhân 100 cho VNPay
-        $amount        = (int) ($order->total_amount * 100);
-        $ipAddr        = request()->ip();
-        $orderInfo     = 'Hoan_tien_don_hang_' . $order->id;
-        $transType     = '02';
+        $amount = (int) ($order->total_amount * 100);
+        $ipAddr = request()->ip();
+        $orderInfo = 'Hoan_tien_don_hang_' . $order->id;
+        $transType = '02';
 
-        $txnRef        = $order->vnpay_txn_ref;
+        $txnRef = $order->vnpay_txn_ref;
         $transactionNo = $order->vnpay_transaction_no;
 
         $rawHash = implode('|', [
@@ -139,33 +147,33 @@ class OrderCancellationController extends Controller
         ]);
 
         Log::info('VNPay Refund rawHash', [
-            'requestId'     => $requestId,
-            'txnRef'        => $txnRef,
+            'requestId' => $requestId,
+            'txnRef' => $txnRef,
             'transactionNo' => $transactionNo,
-            'amount'        => $amount,
-            'transDate'     => $transDate,
-            'createDate'    => $createDate,
-            'ipAddr'        => $ipAddr,
-            'rawHash'       => $rawHash,
+            'amount' => $amount,
+            'transDate' => $transDate,
+            'createDate' => $createDate,
+            'ipAddr' => $ipAddr,
+            'rawHash' => $rawHash,
         ]);
 
         $signature = hash_hmac('sha512', $rawHash, $hashSecret);
 
         $response = Http::timeout(10)->post($endpoint, [
-            'vnp_RequestId'       => $requestId,
-            'vnp_Version'         => '2.1.0',
-            'vnp_Command'         => 'refund',
-            'vnp_TmnCode'         => $tmnCode,
+            'vnp_RequestId' => $requestId,
+            'vnp_Version' => '2.1.0',
+            'vnp_Command' => 'refund',
+            'vnp_TmnCode' => $tmnCode,
             'vnp_TransactionType' => $transType,
-            'vnp_TxnRef'          => $txnRef,
-            'vnp_Amount'          => $amount,
-            'vnp_OrderInfo'       => $orderInfo,
-            'vnp_TransactionNo'   => $transactionNo,
+            'vnp_TxnRef' => $txnRef,
+            'vnp_Amount' => $amount,
+            'vnp_OrderInfo' => $orderInfo,
+            'vnp_TransactionNo' => $transactionNo,
             'vnp_TransactionDate' => $transDate,
-            'vnp_CreateBy'        => 'system',
-            'vnp_CreateDate'      => $createDate,
-            'vnp_IpAddr'          => $ipAddr,
-            'vnp_SecureHash'      => $signature,
+            'vnp_CreateBy' => 'system',
+            'vnp_CreateDate' => $createDate,
+            'vnp_IpAddr' => $ipAddr,
+            'vnp_SecureHash' => $signature,
         ]);
 
         Log::info('VNPay Refund response', $response->json() ?? []);

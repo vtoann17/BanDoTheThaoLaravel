@@ -120,7 +120,6 @@ class MoMoController extends Controller
                 if ($order) {
                     $order->update([
                         'payment_status' => 'paid',
-                        'order_status' => 'confirmed',
                         'payment_method' => 'momo',
                         'paid_at' => Carbon::now(),
                         'momo_trans_id' => $request->query('transId'),
@@ -204,7 +203,6 @@ class MoMoController extends Controller
                 if ($order) {
                     $order->update([
                         'payment_status' => 'paid',
-                        'order_status' => 'confirmed',
                         'payment_method' => 'momo',
                         'paid_at' => Carbon::now(),
                         'momo_trans_id' => $data['transId'],

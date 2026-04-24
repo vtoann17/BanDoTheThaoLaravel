@@ -5,12 +5,11 @@ namespace App\Events;
 use App\Models\ChatMessage;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class NewChatMessage implements ShouldBroadcast
+class NewChatMessage implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -45,6 +44,7 @@ class NewChatMessage implements ShouldBroadcast
             'sender_name' => $this->chatMessage->sender_name,
             'message'     => $this->chatMessage->message,
             'created_at'  => $this->chatMessage->created_at->format('H:i'),
+            'time_ago'    => $this->chatMessage->created_at->diffForHumans(),
         ];
     }
 }
