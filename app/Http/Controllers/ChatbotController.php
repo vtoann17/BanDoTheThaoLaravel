@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Brands;
 use App\Models\Category;
 use App\Models\Subcategory;
+use Illuminate\Support\Facades\Log;
 
 class ChatbotController extends Controller
 {
@@ -18,137 +19,151 @@ class ChatbotController extends Controller
             'history' => 'nullable|array|max:20',
         ]);
 
-        $userMsg  = $request->message;
-        $context  = $this->buildContext($userMsg);
-        $messages = $this->buildMessages($context, $request->history ?? [], $userMsg);
+        $userMsg = $request->message;
 
-        $response = Http::timeout(30)->withHeaders([
-            'Authorization' => 'Bearer ' . config('services.groq.key'),
-            'Content-Type'  => 'application/json',
-        ])->post('https://api.groq.com/openai/v1/chat/completions', [
-            'model'       => 'llama-3.3-70b-versatile',
-            'messages'    => $messages,
-            'temperature' => 0.3,
-            'max_tokens'  => 800,
-        ]);
+        try {
+            // 1. Xây dựng ngữ cảnh dữ liệu (Tìm kiếm + Gợi ý)
+            $context = $this->buildContext($userMsg);
+            
+            // 2. Xây dựng danh sách tin nhắn gửi cho AI
+            $messages = $this->buildMessages($context, $request->history ?? [], $userMsg);
 
-        if ($response->failed()) {
-            return response()->json([
-                'error'   => 'AI Service Error',
-                'details' => $response->json(),
-            ], 500);
-        }
+            // 3. Gọi API Groq
+            $response = Http::timeout(30)->withHeaders([
+                'Authorization' => 'Bearer ' . config('services.groq.key'),
+                'Content-Type'  => 'application/json',
+            ])->post('https://api.groq.com/openai/v1/chat/completions', [
+                'model'       => 'llama-3.3-70b-versatile',
+                'messages'    => $messages,
+                'temperature' => 0.3,
+                'max_tokens'  => 1000,
+            ]);
 
-        $text = data_get(
-            $response->json(),
-            'choices.0.message.content',
-            'Xin lỗi, tôi không thể trả lời lúc này.'
-        );
-
-        $products = [];
-
-        preg_match('/<products>(.*?)<\/products>/s', $text, $matches);
-
-        if (!empty($matches[1])) {
-            $jsonStr = trim($matches[1]);
-            try {
-                $decoded = json_decode($jsonStr, true, 512, JSON_THROW_ON_ERROR);
-                if (is_array($decoded)) {
-                    $validIds = $context['products']->pluck('id')->toArray();
-                    $products = array_values(array_filter(
-                        $decoded,
-                        fn($p) => isset($p['id']) && in_array($p['id'], $validIds)
-                    ));
-                }
-            } catch (\Throwable $e) {
-                $products = [];
+            if ($response->failed()) {
+                return response()->json(['error' => 'AI Service Error'], 500);
             }
 
-            $text = trim(str_replace($matches[0], '', $text));
-        }
+            $text = data_get($response->json(), 'choices.0.message.content', 'Xin lỗi, tôi gặp chút trục trặc.');
 
-        return response()->json([
-            'reply'    => $text,
-            'products' => $products,
-        ]);
+            // 4. Bóc tách dữ liệu sản phẩm JSON từ tag <products>
+            $products = [];
+            if (preg_match('/<products>(.*?)<\/products>/s', $text, $matches)) {
+                $jsonStr = trim($matches[1]);
+                try {
+                    $decoded = json_decode($jsonStr, true, 512, JSON_THROW_ON_ERROR);
+                    if (is_array($decoded)) {
+                        // Chỉ giữ lại các ID thực sự tồn tại trong context để tránh AI "bịa" dữ liệu
+                        $allowedIds = collect($context['products'])
+                            ->merge($context['suggestions'])
+                            ->pluck('id')
+                            ->toArray();
+
+                        $products = array_values(array_filter($decoded, function ($p) use ($allowedIds) {
+                            return isset($p['id']) && in_array($p['id'], $allowedIds);
+                        }));
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Chatbot JSON Parse Error: " . $e->getMessage());
+                }
+                // Xóa tag JSON khỏi nội dung tin nhắn để hiển thị cho người dùng
+                $text = trim(str_replace($matches[0], '', $text));
+            }
+
+            return response()->json([
+                'reply'    => $text,
+                'products' => $products,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Chatbot General Error: " . $e->getMessage());
+            return response()->json(['error' => 'Server Error'], 500);
+        }
     }
 
     private function buildContext(string $search): array
     {
+        // Phân tích giá (Hỗ trợ: dưới 500k, trên 1tr, khoảng 200k-500k)
+        $maxPrice = null;
+        $minPrice = null;
+
+        // Regex tìm kiếm khoảng giá hoặc giá trần/sàn
+        if (preg_match('/(duoi|duới|thap hon|<|re hon)\s*(\d+(?:\.\d+)?)\s*(k|ngan|trieu|tr)/iu', $search, $matches)) {
+            $value = (float)$matches[2];
+            $unit = strtolower($matches[3]);
+            $maxPrice = ($unit === 'k' || $unit === 'ngan') ? $value * 1000 : $value * 1000000;
+        }
+        
+        if (preg_match('/(tren|trên|cao hon|>)\s*(\d+(?:\.\d+)?)\s*(k|ngan|trieu|tr)/iu', $search, $matches)) {
+            $value = (float)$matches[2];
+            $unit = strtolower($matches[3]);
+            $minPrice = ($unit === 'k' || $unit === 'ngan') ? $value * 1000 : $value * 1000000;
+        }
+
         $keywords = collect(preg_split('/\s+/', trim($search)))
             ->filter(fn($w) => mb_strlen($w) >= 2)
-            ->unique()
-            ->values();
+            ->unique();
 
-        $products = Product::select('id', 'name', 'slug', 'price', 'image', 'subcategory_id', 'brand_id')
-            ->with(['brand:id,name', 'subcategory:id,name,category_id'])
-            ->where('status', 1)
-            ->where(function ($q) use ($search, $keywords) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('slug', 'like', "%{$search}%");
+        // Query tìm sản phẩm chính
+        $query = Product::select('id', 'name', 'slug', 'price', 'image', 'brand_id')
+            ->with(['brand:id,name'])
+            ->where('status', 1);
 
-                foreach ($keywords as $kw) {
-                    $q->orWhere('name', 'like', "%{$kw}%")
-                      ->orWhere('slug', 'like', "%{$kw}%");
-                }
-            })
-            ->limit(6)
-            ->get();
+        $query->where(function ($q) use ($search, $keywords, $minPrice, $maxPrice) {
+            $q->where('name', 'like', "%{$search}%");
+            foreach ($keywords as $kw) {
+                $q->orWhere('name', 'like', "%{$kw}%");
+            }
+            if ($minPrice) $q->where('price', '>=', $minPrice);
+            if ($maxPrice) $q->where('price', '<=', $maxPrice);
+        });
 
-        $brands        = Brands::select('id', 'name', 'slug')->get();
-        $categories    = Category::select('id', 'name', 'slug')->get();
-        $subcategories = Subcategory::select('id', 'name', 'slug', 'category_id')->get();
+        $products = $query->limit(6)->get();
 
-        return compact('products', 'brands', 'categories', 'subcategories');
+        // Gợi ý thêm (AI Suggestions): Lấy sản phẩm ngẫu nhiên nếu kết quả tìm kiếm ít
+        $suggestions = collect();
+        if ($products->count() < 3) {
+            $suggestions = Product::select('id', 'name', 'slug', 'price', 'image', 'brand_id')
+                ->with(['brand:id,name'])
+                ->where('status', 1)
+                ->whereNotIn('id', $products->pluck('id'))
+                ->inRandomOrder()
+                ->limit(4)
+                ->get();
+        }
+
+        return compact('products', 'suggestions');
     }
 
     private function buildMessages(array $ctx, array $history, string $userMsg): array
     {
-        $hasProducts = $ctx['products']->count() > 0;
+        $mainProducts = $ctx['products'];
+        $suggested = $ctx['suggestions'];
 
-        $productsStr = $hasProducts
-            ? $ctx['products']->map(
-                fn($p) =>
-                "- id:{$p->id} | ten:{$p->name} | gia:{$p->price} | slug:{$p->slug} | image:{$p->image} | brand:{$p->brand?->name} | subcategory:{$p->subcategory?->name}"
-            )->join("\n")
-            : 'KHONG_CO_SAN_PHAM';
+        $format = fn($p) => "- ID:{$p->id} | Tên:{$p->name} | Giá:" . number_format($p->price) . "đ | Slug:{$p->slug} | Ảnh:{$p->image}";
 
-        $productRule = $hasProducts
-            ? <<<RULE
-Khi goi y san pham, them JSON vao CUOI phan hoi theo dinh dang:
-<products>[{"id":1,"name":"Ten san pham","price":500000,"slug":"ten-san-pham","image":"duong-dan-anh","brand":{"name":"Nike"}}]</products>
-Chi tra JSON hop le, khong them text trong the <products>.
-RULE
-            : 'KHONG duoc tra ve the <products> vi khong co san pham phu hop.';
+        $mainList = $mainProducts->count() > 0 ? $mainProducts->map($format)->join("\n") : "KHÔNG CÓ";
+        $suggestList = $suggested->count() > 0 ? $suggested->map($format)->join("\n") : "KHÔNG CÓ";
 
         $systemPrompt = <<<SYS
-Ban la tro ly mua sam the thao cua SportShop. Tra loi bang tieng Viet, than thien, ngan gon.
+Bạn là chuyên viên tư vấn tại SportShop. Trả lời thân thiện, ưu tiên tư vấn sản phẩm khách tìm.
 
-=== QUY TAC BAT BUOC ===
-1. Chi duoc goi y san pham CO TRONG danh sach "SAN PHAM TIM DUOC" duoi day.
-2. TUYET DOI KHONG duoc tu sang tao, tu them hoac de xuat san pham KHONG co trong danh sach.
-3. Neu danh sach la KHONG_CO_SAN_PHAM, hay thong bao lich su rang shop chua co san pham phu hop va goi y user thu tu khoa khac.
-4. Khong duoc gia mao ten thuong hieu hay ten san pham.
+=== DANH SÁCH SẢN PHẨM KHỚP YÊU CẦU ===
+{$mainList}
 
-=== QUY TAC TRA SAN PHAM ===
-{$productRule}
+=== DANH SÁCH SẢN PHẨM GỢI Ý THÊM (NẾU CẦN) ===
+{$suggestList}
 
-=== SAN PHAM TIM DUOC ===
-{$productsStr}
+=== QUY TẮC ===
+1. Nếu có sản phẩm khớp, hãy tư vấn trực tiếp.
+2. Nếu không có sản phẩm khớp, hãy xin lỗi và dùng danh sách "GỢI Ý THÊM" để chào mời khách.
+3. Khi giới thiệu sản phẩm, BẮT BUỘC chèn JSON vào cuối phản hồi trong tag: <products>[{"id":...}]</products>.
+4. Chỉ dùng dữ liệu ID và Tên chính xác từ danh sách được cung cấp.
 SYS;
 
-        $messages   = [];
-        $messages[] = ['role' => 'system', 'content' => $systemPrompt];
-
+        $messages = [['role' => 'system', 'content' => $systemPrompt]];
         foreach (collect($history)->take(-6) as $m) {
-            if (in_array($m['role'] ?? '', ['user', 'assistant']) && !empty($m['content'])) {
-                $messages[] = [
-                    'role'    => $m['role'],
-                    'content' => $m['content'],
-                ];
-            }
+            $messages[] = ['role' => $m['role'], 'content' => $m['content']];
         }
-
         $messages[] = ['role' => 'user', 'content' => $userMsg];
 
         return $messages;
